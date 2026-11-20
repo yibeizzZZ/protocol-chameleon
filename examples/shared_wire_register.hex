@@ -1,0 +1,13 @@
+81  // 0: On rising P0, sample the command on P1 (0 = READ, 1 = WRITE).
+67  // 1: Branch to the WRITE handler on a one.
+90  // 2: Wait for falling P0. The controller releases P1 on this edge.
+22  // 3: Enable P1, exposing the stored bit in the output latch.
+90  // 4: Hold the reply through its rising sample until the next falling edge.
+20  // 5: Release P1. The output latch retains the bit for subsequent READs.
+70  // 6: Return to the command wait.
+81  // 7: On the second rising edge of a WRITE, sample the new bit.
+6B  // 8: Branch to the store-one path.
+10  // 9: Store zero while the controller still owns P1.
+72  // A: Echo the stored bit using the shared reply path.
+12  // B: Store one while the controller still owns P1.
+72  // C: Echo the stored bit using the shared reply path.

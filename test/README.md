@@ -1,6 +1,6 @@
 # Milestones 1–10 verification
 
-The Tiny Tapeout RTL regression passed **45 tests, 0 failed, 0 skipped**. The 39 previous tests and six reactive-planning tests ran through the same top-level harness using external inputs, outputs, enables or resolved pads.
+The Tiny Tapeout RTL regression passed **46 tests, 0 failed, 0 skipped** on the M10 hardware. This includes the original 45 tests and the subsequent [P1 shared-wire register test](../docs/P1_SHARED_WIRE_ACCEPTANCE.md). All suites use the top-level harness and observe external inputs, outputs, enables or resolved pads.
 
 ## Reproduce the functional tests
 
@@ -27,6 +27,7 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [Feedback campaigns](test_feedback.py) | 6 | Four-trial autonomous execution, two-verdict history, policy-only replay, stopping and retention, deadlines inside a selected frame, and SPI timing with a feedback-selected status mode. |
 | [Logical transactions](test_transactions.py) | 9 | STREAM mismatch and compatibility, contract-only replay, boundary-only replay, input-dependent lengths and truncated tails, exact deadlines and start eligibility, read-history scope, missing fields, autonomous feedback and SPI timing. |
 | [Transaction-triggered P3](test_reactive.py) | 6 | Rule-only and input-time replays, reverse target, omission, rejection and cancellation, hard and relative deadlines, four matches, partial records, feedback and SPI timing. |
+| [Shared-wire GPIO register](test_shared_wire_register.py) | 1 | Two- and three-clock frames, read-after-write history, pin ownership and turnaround at 1 MHz across 22 phases. |
 
 ## Transaction-triggered scheduling and latency
 
