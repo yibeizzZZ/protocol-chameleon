@@ -51,7 +51,8 @@ strobe low before switching back to transmit mode.
 
 For a period of N clocks, encode reload = N − 1. The supported register range
 is 8 to 4096 clocks per bit; baud = input clock frequency / N. A smaller
-period makes the apply command a no-op. The staged low bits persist until
+period leaves the active UART descriptor unchanged. With zero staged low
+bits, `0x83` enters the programmable engine and `0x82` enters the SPI peripheral. The staged low bits persist until
 rewritten or reset. Apply updates all three settings on one edge. Configuration
 writes can occur while busy and never request a transmission.
 
@@ -194,4 +195,54 @@ The 16 × 8 store contains 128 program bits; its physical implementation and rea
 mux cost are unmeasured. This revision has four bits of sample history, no
 byte serializer in the sequencer, queued edge capture, transaction memory, or
 P2–P5 rule and feedback execution. Neither fit in 8×4 tiles nor a maximum
-external clock rate (including the proposed 5 MHz SPI target) has been established.
+external clock rate for the instruction sequencer has been established.
+
+## SPI status peripheral
+
+The host selects a dedicated SPI bit shifter with the UART configuration writes
+`00 82` (hex, two strobes with `uio[3]=1`). The sequencer entry remains `00 83`.
+The UART descriptor survives both transitions. Release all external drivers on
+`uio[7:4]` while entering from UART; these four pins are UART outputs at reset.
+After entry the controller drives `uio[4]=CS_n`, `uio[5]=SCLK`, and
+`uio[6]=MOSI`. The target drives only `uio[7]=MISO` in an active transaction.
+Start with CS high and SCLK at the mode's idle level.
+
+**Host programming.** Use the usual synchronous `uio[0]` strobe and `ui_in[7:0]`
+byte bus. Keep CS high and allow at least 100 ns for idle to be observed before
+programming. All values below are hexadecimal.
+
+| Control byte (`uio[3]=1`) | Effect |
+| --- | --- |
+| `10`–`13` | Select SPI mode 0–3. Bit 1 is CPOL, bit 0 is CPHA. |
+| `20`–`23` | Select the base byte of status register 0–3. |
+| `24`–`27` | Select the read-to-clear mask of status register 0–3. |
+| `01` | Rearm the first-read behavior at all addresses. |
+| `00` | Exit to UART. Deassert CS, then release the peer drivers before this write or system reset. |
+
+Supply one data strobe with `uio[3]=0` after a register selector. Writing either
+field rearms just that address. Another control write replaces or cancels an
+incomplete selector. Register programming is ignored during an active frame.
+Reset selects UART, clears the table and history, and sets SPI mode 0. Exit
+and re-entry preserve the table, mode and history; the pending selector is discarded.
+
+**Wire transaction.** Keep CS low for three MSB-first bytes. Send opcode
+`A6`, an address from `00` through `03`, then a dummy byte. MISO carries zero
+during the first two bytes and returns the status during the third. On the
+last sample edge of a valid read, that address becomes seen. Later reads
+return `base & ~clear_mask`. An incomplete read, unknown command or address
+does not consume first-read state. Extra clocks after the third byte return
+zeros until deselection. Start a fresh CS window for the next command.
+
+For example, in SPI mode 0 write control `22`, data `ED`, control `26`, data
+`48`. Two successive controller transfers of `A6 02 00` return `00 00 ED`
+and `00 00 A5`. No host strobe occurs during either transfer.
+
+**Timing envelope exercised.** At 50 MHz system clock and 5 MHz SCLK, allow
+100 ns in each SCLK half-period, at least 100 ns from CS assertion to the first
+edge, and 100 ns after the last edge before deselecting. Keep CS high for at
+least 100 ns between transactions. The controller changes MOSI on launch
+edges (preload the first bit for CPHA=0) and samples MISO on the opposite edge.
+CS, clock and data pass through two-stage synchronizers. The address sample
+preloads the shifter; detecting a launch edge updates MISO in one registered
+operation. Raw CS deassertion gates the output enable for immediate release
+in RTL. See the [timing measurements and limits](../test/README.md).

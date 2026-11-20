@@ -20,6 +20,7 @@ project:
     - "project.v"
     - "serial_config.v"
     - "protocol_engine.v"
+    - "spi_target.v"
     - "uart_tx.v"
     - "uart_rx.v"
 
@@ -51,10 +52,10 @@ pinout:
   uio[1]: "UART_RX (input)"
   uio[2]: "RX_FRAMING_ERROR / ENGINE_RUNNING (output)"
   uio[3]: "CONFIG_MODE / ENGINE_CONTROL (input)"
-  uio[4]: "RX_DATA0 / P0"
-  uio[5]: "RX_DATA1 / P1"
-  uio[6]: "RX_DATA2 / P2"
-  uio[7]: "RX_DATA3 / P3"
+  uio[4]: "RX_DATA0 / P0 / SPI_CS_N"
+  uio[5]: "RX_DATA1 / P1 / SPI_SCLK"
+  uio[6]: "RX_DATA2 / P2 / SPI_MOSI"
+  uio[7]: "RX_DATA3 / P3 / SPI_MISO"
 
 # Do not change!
 yaml_version: 6

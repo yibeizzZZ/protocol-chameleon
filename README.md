@@ -2,7 +2,7 @@
 
 Protocol Chameleon is FoRG's prototype for a reprogrammable protocol emulator on the Tiny Tapeout IHP 130 nm platform. The research question is how much protocol behavior a chip can learn after fabrication while still responding on the device's clock. Protocol execution, transaction history, and checking logic must share an **8×4-tile budget** (roughly 1 mm² nominal).
 
-**Current status:** The Milestone 4 RTL contains a configurable UART and a four-pin programmable sequencer. The RTL has not yet been validated. The 50 MHz system clock is provisional, and area, timing closure, and maximum external clock rate are unmeasured.
+**Milestone 5:** All 16 pin-level Cocotb regressions passed. A programmable SPI status peripheral returned history-dependent responses in modes 0–3 at 5 MHz, with at least 40 ns of MISO setup in the tested RTL phases at a 50 MHz system clock. Physical timing closure and fit within the 8×4 tile budget remain open. See the [measurements and reproduction commands](test/README.md).
 
 ## The experiment
 
@@ -13,7 +13,7 @@ The design proposal divides that experiment into two research goals.
 - **Part A — Reprogrammable protocol emulation.** Load a description that changes framing, pin direction, timing, transaction boundaries, and legal transitions on the same chip. The proposed acceptance test includes a clocked protocol disclosed only after the hardware design is frozen.
 - **Part B — Autonomous real-time testing.** Relate traffic to earlier events, classify the result, and choose the next response or trial locally. The proposed programming model covers the protocol (P1), peripheral behavior (P2), stimuli and trial timing (P3), checking rules (P4), and feedback policy (P5).
 
-The current sequencer implements an initial subset of P1. Transaction models, concurrent deadline checking, replayable failure records, and feedback across trials remain research goals. The [design proposal (Word)](FoRG%20%E2%80%94%20Causal%20Feedback%20Protocol%20Emulator%20_%20Research%20Proposal%20v0.7.docx) defines the full specification and acceptance criteria.
+The sequencer implements a subset of P1. The SPI peripheral implements a bounded P2 device model with per-address read history. More general transaction models, concurrent deadline checking, replayable failure records, and feedback across trials remain research goals. The [design proposal (Word)](FoRG%20%E2%80%94%20Causal%20Feedback%20Protocol%20Emulator%20_%20Research%20Proposal%20v0.7.docx) defines the full specification and acceptance criteria.
 
 ## What the RTL implements
 
@@ -21,6 +21,7 @@ The current sequencer implements an initial subset of P1. Transaction models, co
 | --- | --- |
 | UART | Independent TX and RX. Reset selects 8N1 at 434 clocks per bit, approximately 115200 baud with a 50 MHz clock. Runtime configuration selects 7 or 8 data bits, 1 or 2 stop bits, and 8–4096 clocks per bit. Each direction snapshots its settings at the start of a frame. |
 | Programmable sequencer | Up to 16 one-byte instructions control four bidirectional pins. A program can set levels and directions, sample an input, delay, wait for a rising or falling edge on one pin while sampling another, and branch on the latest sample. The host can read the four most recent sample bits. |
+| SPI target | The host selects CPOL/CPHA and programs four status registers and their read-to-clear masks. A separate serial shifter returns the addressed byte within the same CS window. See the [SPI programming interface](docs/info.md#spi-status-peripheral) and [RTL](src/spi_target.v). |
 
 For example, the ten-byte program below describes a repeating, externally clocked one-bit exchange. On a rising edge of P0, it samples P1 and branches to drive the sampled value on P2. It holds P2 through the falling edge, releases the pin, and returns to wait for the next request.
 

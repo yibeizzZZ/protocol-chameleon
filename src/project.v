@@ -30,11 +30,20 @@ module tt_um_example (
   wire [11:0] bit_reload;
   wire seven_bits, two_stops;
   wire enter_engine, engine_selected, engine_running;
+  wire enter_spi, spi_selected, miso, miso_oe;
+  wire uart_host = !engine_selected && !spi_selected;
   wire [3:0] engine_out, engine_oe, engine_samples;
   serial_config settings (
-    .clk(clk), .rst_n(rst_n), .write(strobe && config_mode && !engine_selected),
-    .command(ui_in), .enter_engine(enter_engine),
+    .clk(clk), .rst_n(rst_n), .write(strobe && config_mode && uart_host),
+    .command(ui_in), .enter_engine(enter_engine), .enter_spi(enter_spi),
     .bit_reload(bit_reload), .seven_bits(seven_bits), .two_stops(two_stops)
+  );
+
+  spi_target peripheral (
+    .clk(clk), .rst_n(rst_n), .enter(enter_spi), .selected(spi_selected),
+    .strobe(strobe), .control(config_mode), .host_byte(ui_in),
+    .cs_n(uio_in[4]), .sclk(uio_in[5]), .mosi(uio_in[6]),
+    .miso(miso), .miso_oe(miso_oe)
   );
 
   protocol_engine engine (
@@ -47,7 +56,7 @@ module tt_um_example (
   wire tx, busy, done;
   uart_tx transmitter (
     .clk(clk), .rst_n(rst_n),
-    .start(strobe && !config_mode && !engine_selected), .data(ui_in),
+    .start(strobe && !config_mode && uart_host), .data(ui_in),
     .bit_reload(bit_reload), .seven_bits(seven_bits), .two_stops(two_stops),
     .tx(tx), .busy(busy), .done(done)
   );
@@ -61,9 +70,13 @@ module tt_um_example (
   );
 
   assign uo_out  = {engine_selected ? engine_samples : rx_data[7:4], rx_valid, done, busy, tx};
-  assign uio_out = {engine_selected ? engine_out : rx_data[3:0], 1'b0,
+  wire [3:0] upper_out = spi_selected ? {miso, 3'b0} :
+                         engine_selected ? engine_out : rx_data[3:0];
+  wire [3:0] upper_oe = spi_selected ? {miso_oe, 3'b0} :
+                        engine_selected ? engine_oe : 4'b1111;
+  assign uio_out = {upper_out, 1'b0,
                     engine_selected ? engine_running : rx_error, 2'b0};
-  assign uio_oe  = {engine_selected ? engine_oe : 4'b1111, 4'b0100};
+  assign uio_oe  = {upper_oe, 4'b0100};
 
   wire _unused = &{ena, uio_in[2], 1'b0};
 

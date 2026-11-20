@@ -8,6 +8,7 @@ module serial_config (
     input  wire        write,
     input  wire [7:0]  command,
     output wire        enter_engine,
+    output wire        enter_spi,
     output reg  [11:0] bit_reload,
     output reg         seven_bits,
     output reg         two_stops
@@ -17,6 +18,7 @@ module serial_config (
   wire [11:0] requested_reload = {command[6:2], timing_low};
   // This pair previously requested an invalid one-clock UART period.
   assign enter_engine = write && timing_low == 7'd0 && command == 8'h83;
+  assign enter_spi = write && timing_low == 7'd0 && command == 8'h82;
 
   always @(posedge clk) begin
     if (!rst_n) begin

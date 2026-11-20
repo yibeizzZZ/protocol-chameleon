@@ -19,15 +19,26 @@ module tb ();
   reg ena;
   reg [7:0] ui_in;
   reg [7:0] uio_in;
+  reg [7:0] peer_oe;
+  tri [7:0] pads;
   wire [7:0] uo_out;
   wire [7:0] uio_out;
   wire [7:0] uio_oe;
+
+  // Both sides see the resolved pad: Z when released, X on opposing drives.
+  genvar pin;
+  generate
+    for (pin = 0; pin < 8; pin = pin + 1) begin : pad_model
+      assign pads[pin] = peer_oe[pin] ? uio_in[pin] : 1'bz;
+      assign pads[pin] = uio_oe[pin] ? uio_out[pin] : 1'bz;
+    end
+  endgenerate
 
   // Replace tt_um_example with your module name:
   tt_um_example user_project (
       .ui_in  (ui_in),    // Dedicated inputs
       .uo_out (uo_out),   // Dedicated outputs
-      .uio_in (uio_in),   // IOs: Input path
+      .uio_in (pads),     // IOs: resolved input path
       .uio_out(uio_out),  // IOs: Output path
       .uio_oe (uio_oe),   // IOs: Enable path (active high: 0=input, 1=output)
       .ena    (ena),      // enable - goes high when design is selected
