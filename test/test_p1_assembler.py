@@ -45,3 +45,30 @@ class AssemblerTests(unittest.TestCase):
                        "RISE_SAMPLE P0", "HALT\n" * 17, "I2C_WRITE 0x80 0 400"):
             with self.subTest(source=source), self.assertRaisesRegex(ValueError, "line "):
                 compile_source(source)
+
+    def test_all_spi_rules_and_flags(self):
+        p = compile_source("""SPI
+            first: IF_BYTE 0xa6 reply
+            QUIET | NONE
+            STATUS_ADDR first | TAG ADDR
+            STATUS_REG 3 first | MOSI_DATA
+            COMMIT first | END
+            reply: REPLY 255 first | CMD MISO_DATA
+            IF_SEEN 2 first
+            NEXT first
+        """)
+        self.assertEqual(p["run"], 4)
+        self.assertEqual(p["image"], [21, 166, 0, 0, 32, 0, 48, 3, 64, 0, 80, 255, 96, 2, 112, 0])
+        self.assertEqual(p["settings"], [[17, 0], [18, 20], [19, 2], [20, 32], [21, 11]])
+
+    def test_timed_limits_labels_and_padding(self):
+        timed = compile_source("TIMED 2 256\nCHECK 0 end\nSLOT 3\nend: CHECK 1 end")
+        self.assertEqual(timed, {"image": [28], "run": 5,
+                                 "settings": [[32, 1], [33, 255], [34, 64], [35, 66], [36, 2]]})
+        self.assertEqual(len(compile_source("TIMED 2 2\n" + "SLOT 3\n"*64)["image"]), 16)
+        for source in ("TIMED 1 256\nSLOT 0", "TIMED 2 2\nSLOT 4", "TIMED 2 2\n"+"SLOT 0\n"*65,
+                       "TIMED 2 2\nCHECK 0 0\nCHECK 0 1", "TIMED 2 2\n"+"CHECK 0 0\n"*3,
+                       "SPI\n"+"QUIET\n"*9, "SPI\nNEXT somewhere", "SPI\nQUIET |",
+                       "SPI\nQUIET | MOSI_DATA MISO_DATA", "SPI\nSTATUS_REG 4 0"):
+            with self.subTest(source=source), self.assertRaisesRegex(ValueError, "line "):
+                compile_source(source)

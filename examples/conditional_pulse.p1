@@ -1,0 +1,6 @@
+# P1 selects whether an open-drain pulse is emitted on P0.
+TIMED 3 6
+SLOT 0
+CHECK 0 idle
+SLOT 1
+idle: SLOT 0

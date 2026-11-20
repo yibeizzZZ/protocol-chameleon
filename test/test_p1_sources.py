@@ -11,6 +11,9 @@ import cocotb
 
 from pins import Pins
 from test_i2c_write import target
+from test_spi import configure
+from test_transactions import tagged_plan, run_wire
+from test_trials import Trial, PASS
 from test_shared_wire_register import run_exchanges
 
 
@@ -67,3 +70,45 @@ async def edited_i2c_source_on_pins(dut):
                               actual[0] >> 1, actual[1], rate)
     finally:
         dut.bus_pullups.value = 0
+
+
+@cocotb.test()
+async def programmed_open_drain_pulse(dut):
+    pins = Pins(dut)
+    await pins.reset()
+    await pins.enter()
+    run = await load_source(pins, ROOT / "examples/conditional_pulse.p1")
+    pins.peer_mask |= 0x20
+    for selection in (0, 1):
+        pins.inputs = (pins.inputs & ~0x20) | (selection << 5)
+        await pins.tick(4)
+        await pins.write(run)
+        trace = []
+        for _ in range(24):
+            await pins.tick()
+            if not pins.running:
+                break
+            assert pins.out & pins.oe & 0xf0 == 0
+            trace.append(pins.oe >> 4)
+        assert not pins.running and pins.oe == 4
+        assert trace == [0]*12 + ([1]*3 if selection == 0 else []) + [0]*6
+        assert pins.uo >> 4 == 2 + selection
+
+
+@cocotb.test()
+async def assembled_spi_boundaries(dut):
+    pins = Pins(dut)
+    await pins.reset()
+    await pins.enter()
+    run = await load_source(pins, ROOT / "examples/spi_stream.p1")
+    await pins.write(run)
+    pins.inputs |= 0x10
+    pins.peer_mask |= 0x70
+    await pins.tick(5)
+    await configure(pins, 1, 0x55, 0)
+    await configure(pins, 2, 0xaa, 0)
+    await pins.write(0x30)  # Open the independently configured trial checker.
+    trial = Trial(pins)
+    await tagged_plan(trial)
+    record, _ = await run_wire(trial)
+    assert record[0] == PASS and record[5:] == (2, 1), record

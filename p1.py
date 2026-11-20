@@ -63,10 +63,44 @@ def encode(op, args, labels, size):
     return OPCODES[op] | operand
 
 
+# Byte rule opcode, literal/register argument maximum. Only QUIET has no destination.
+SPI_RULES = {"QUIET": (0, None), "IF_BYTE": (1, 255), "STATUS_ADDR": (2, None),
+             "STATUS_REG": (3, 3), "COMMIT": (4, None), "REPLY": (5, 255),
+             "IF_SEEN": (6, 3), "NEXT": (7, None)}
+FIELDS = {"TAG": 16, "CMD": 8, "ADDR": 4, "MOSI_DATA": 2, "MISO_DATA": 3, "END": 32}
+
+
+def encode_spi(op, args, labels, size):
+    fields = None
+    if "|" in args:
+        split = args.index("|")
+        flags = [flag.upper() for flag in args[split+1:]]
+        args = args[:split]
+        if flags == ["NONE"]:
+            fields = 0
+        elif (not flags or len(set(flags)) != len(flags) or not set(flags) <= FIELDS.keys()
+              or {"MISO_DATA", "MOSI_DATA"} <= set(flags)):
+            raise ValueError("invalid or conflicting transaction fields")
+        else:
+            fields = 0
+            for flag in flags:
+                fields |= FIELDS[flag]
+    if op not in SPI_RULES:
+        raise ValueError(f"unknown SPI rule {op!r}")
+    opcode, maximum = SPI_RULES[op]
+    count = int(op != "QUIET") + int(maximum is not None)
+    if len(args) != count:
+        raise ValueError(f"{op} expects {count} operand(s)")
+    target = destination(args[-1], labels, size) if op != "QUIET" else 0
+    argument = number(args[0], maximum) if maximum is not None else 0
+    return opcode << 4 | target, argument, fields
+
+
 def compile_source(source):
     """Return JSON-compatible image bytes, selector/value pairs and RUN command."""
-    labels = {}
-    rows = []
+    labels, rows = {}, []
+    mode, header = "GPIO", []
+    header_line = None
     for line_no, raw in enumerate(source.splitlines(), 1):
         line = raw.partition("#")[0].strip()
         if ":" in line:
@@ -76,25 +110,67 @@ def compile_source(source):
                 raise ValueError(f"line {line_no}: invalid or duplicate label {name!r}")
             labels[name] = len(rows)
         words = line.split()
-        if words:
-            rows.append((line_no, words[0].upper(), words[1:]))
-    if not rows:
-        raise ValueError("empty program")
-    line_no, op, args = rows[0]
+        if not words:
+            continue
+        op, args = words[0].upper(), words[1:]
+        if op in ("TIMED", "SPI", "I2C_WRITE") and header_line is None and not rows and not labels:
+            mode, header, header_line = op, args, line_no
+        else:
+            rows.append((line_no, op, args))
+
+    line_no = header_line or 1
     try:
-        if op == "I2C_WRITE":
-            if len(rows) != 1 or labels or len(args) != 3:
+        if mode == "I2C_WRITE":
+            if rows or labels or len(header) != 3:
                 raise ValueError("use I2C_WRITE address data rate_khz as the only statement")
-            image, settings = build_write(number(args[0], 127), number(args[1], 255),
-                                          number(args[2], 400))
+            image, settings = build_write(number(header[0], 127), number(header[1], 255),
+                                          number(header[2], 400))
             return {"image": list(image), "settings": [list(pair) for pair in settings], "run": 5}
-        if len(rows) > 16:
-            line_no = rows[16][0]
-            raise ValueError("GPIO instruction store holds 16 bytes")
-        image = []
-        for line_no, op, args in rows:
-            image.append(encode(op, args, labels, len(rows)))
-        return {"image": image, "settings": [], "run": 2}
+        if not rows:
+            raise ValueError("empty program")
+        limit = {"GPIO": 16, "SPI": 8, "TIMED": 64}[mode]
+        if len(rows) > limit:
+            line_no = rows[limit][0]
+            raise ValueError(f"{mode} program exceeds {limit} entries")
+
+        image, settings = [], []
+        if mode == "TIMED":
+            if len(header) != 2:
+                raise ValueError("TIMED needs the low and released P0 dwell in clocks")
+            for selector, token in zip((0x20, 0x21), header):
+                dwell = number(token, 256)
+                if dwell < 2:
+                    raise ValueError("dwell must be 2..256 clocks")
+                settings.append([selector, dwell - 1])
+        elif header:
+            raise ValueError("SPI takes no header operands")
+
+        branch = None
+        checkpoints = []
+        for index, (line_no, op, args) in enumerate(rows):
+            if mode == "TIMED":
+                if (op, len(args)) not in (("SLOT", 1), ("CHECK", 2)):
+                    raise ValueError("expected SLOT mask or CHECK mask destination")
+                if index % 4 == 0:
+                    image.append(0)
+                image[-1] |= number(args[0], 3) << (2 * (index % 4))
+                if op == "CHECK":
+                    target = destination(args[1], labels, len(rows))
+                    if len(checkpoints) == 2 or (branch is not None and target != branch):
+                        raise ValueError("at most two checkpoints can share one branch destination")
+                    branch = target
+                    checkpoints.append(index)
+            elif mode == "SPI":
+                state, argument, fields = encode_spi(op, args, labels, len(rows))
+                image.extend((state, argument))
+                if fields is not None:
+                    settings.append([0x10 + index, fields])
+            else:
+                image.append(encode(op, args, labels, len(rows)))
+        if checkpoints:
+            settings.extend([0x22 + i, 0x40 | slot] for i, slot in enumerate(checkpoints))
+            settings.append([0x24, branch])
+        return {"image": image, "settings": settings, "run": {"GPIO": 2, "SPI": 4, "TIMED": 5}[mode]}
     except ValueError as error:
         raise ValueError(f"line {line_no}: {error}") from None
 

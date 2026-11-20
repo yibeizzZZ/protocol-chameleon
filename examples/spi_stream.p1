@@ -1,0 +1,4 @@
+# Each address/status pair ends one logical record, even while CS stays low.
+SPI
+address: STATUS_ADDR commit | TAG ADDR
+commit: COMMIT address | CMD MISO_DATA END

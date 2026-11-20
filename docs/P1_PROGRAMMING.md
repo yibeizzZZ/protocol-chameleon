@@ -33,3 +33,19 @@ To try your own I2C source, create a file containing e.g. `I2C_WRITE 0x52 0x3C 1
 ```sh
 make -C test p1 P1_I2C_SOURCE=/path/to/my-write.p1 P1_EXPECT_ADDRESS=0x52 P1_EXPECT_DATA=0x3C P1_EXPECT_RATE=100
 ```
+
+## Custom timed GPIO
+
+Start with `TIMED low_clocks released_clocks`. Each duration is 2–256 system clocks and is selected by P0's output enable. Each `SLOT mask` pulls low the named mask bits (P0 is bit 0, P1 is bit 1); unset bits release the pins. `CHECK mask label` emits the same slot, samples synchronized P1 near the end and branches on one. Up to two CHECK slots may share one destination. Labels address individual slots. Four slots pack into each byte, and unused trailing slots release both lines for the released-P0 dwell. The limit is 64 slots. [Conditional pulse example](../examples/conditional_pulse.p1)
+
+## SPI byte programs and logical transactions
+
+Start with `SPI`. Each of up to eight labeled states consumes one MSB-first SPI byte. `QUIET` silences the target for the rest of the selection. Other rules end in a destination label or state number.
+
+| Rule | Effect |
+| --- | --- |
+| `IF_BYTE literal target`, `IF_SEEN register target` | Branch when the input byte matches or the register has been seen. Otherwise advance to the next state. |
+| `STATUS_ADDR target`, `STATUS_REG register target` | Select the next status reply by the received byte or a fixed register (0–3). |
+| `COMMIT target`, `REPLY literal target`, `NEXT target` | Commit the pending read, send a literal byte, or advance without a reply. |
+
+After a rule, add a whitespace-separated `|` followed by `TAG`, `CMD`, `ADDR`, `MOSI_DATA` or `MISO_DATA`, and/or `END` to mark a logical transaction boundary. Use `| NONE` for an explicit zero annotation. An image without annotations retains physical chip-select framing. The JSON settings encode annotations for the public loader, and run command 4 enters the SPI byte engine. The stream example lets the checker count three logical records during a single physical selection. [SPI example](../examples/spi_stream.p1) · [SPI rules and wire timing](info.md#load-a-byte-transaction-program)
