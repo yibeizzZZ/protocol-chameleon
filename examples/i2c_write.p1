@@ -1,0 +1,2 @@
+# Seven-bit address, payload byte and SCL rate in kHz at a 50 MHz system clock.
+I2C_WRITE 0x52 0xA5 400

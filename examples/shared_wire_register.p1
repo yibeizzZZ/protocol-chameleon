@@ -1,0 +1,18 @@
+# P0 is the controller's clock. P1 carries commands, writes, and replies.
+command:
+    RISE_SAMPLE P0 P1
+    JUMP_ONE write
+reply:
+    FALL_SAMPLE P0 P0
+    DIR 0b0010          # Drive P1 with the stored value.
+    FALL_SAMPLE P0 P0
+    DIR 0               # Release P1 while retaining the output latch.
+    JUMP command
+write:
+    RISE_SAMPLE P0 P1
+    JUMP_ONE store_one
+    DRIVE 0
+    JUMP reply
+store_one:
+    DRIVE 0b0010
+    JUMP reply
