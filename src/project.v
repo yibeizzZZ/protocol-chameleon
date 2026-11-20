@@ -16,12 +16,34 @@ module tt_um_example (
     input  wire       rst_n     // reset_n - low to reset
 );
 
-  // All output pins must be assigned. If not used, assign to 0.
-  assign uo_out  = ui_in + uio_in;  // Example: ou_out is the sum of ui_in and uio_in
-  assign uio_out = 0;
-  assign uio_oe  = 0;
+  // The parallel data and send strobe are synchronous to clk.
+  reg send_prev;
+  always @(posedge clk) begin
+    if (!rst_n)
+      send_prev <= 1'b0;
+    else
+      send_prev <= uio_in[0];
+  end
 
-  // List all unused inputs to prevent warnings
-  wire _unused = &{ena, clk, rst_n, 1'b0};
+  localparam integer CLOCKS_PER_BIT = 434;
+  wire tx, busy, done;
+  uart_tx #(.CLOCKS_PER_BIT(CLOCKS_PER_BIT)) transmitter (
+    .clk(clk), .rst_n(rst_n),
+    .start(uio_in[0] && !send_prev), .data(ui_in),
+    .tx(tx), .busy(busy), .done(done)
+  );
+
+  wire [7:0] rx_data;
+  wire rx_valid, rx_error;
+  uart_rx #(.CLOCKS_PER_BIT(CLOCKS_PER_BIT)) receiver (
+    .clk(clk), .rst_n(rst_n), .rx(uio_in[1]),
+    .data(rx_data), .valid(rx_valid), .framing_error(rx_error)
+  );
+
+  assign uo_out  = {rx_data[7:4], rx_valid, done, busy, tx};
+  assign uio_out = {rx_data[3:0], 1'b0, rx_error, 2'b0};
+  assign uio_oe  = 8'b1111_0100;
+
+  wire _unused = &{ena, uio_in[7:2], 1'b0};
 
 endmodule
