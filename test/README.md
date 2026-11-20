@@ -1,6 +1,6 @@
-# Milestones 1–10 verification
+# RTL verification
 
-The Tiny Tapeout RTL regression passed **46 tests, 0 failed, 0 skipped** on the M10 hardware. This includes the original 45 tests and the subsequent [P1 shared-wire register test](../docs/P1_SHARED_WIRE_ACCEPTANCE.md). All suites use the top-level harness and observe external inputs, outputs, enables or resolved pads.
+The Tiny Tapeout RTL regression passed **48 tests, 0 failed, 0 skipped** on the RTL with timed GPIO. It includes the original 45 M10 tests, the [P1 shared-wire register test](../docs/P1_SHARED_WIRE_ACCEPTANCE.md) and two tests for I²C writes and timed GPIO controls. All suites use the top-level harness and observe external inputs, outputs, enables or resolved pads.
 
 ## Reproduce the functional tests
 
@@ -28,6 +28,36 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [Logical transactions](test_transactions.py) | 9 | STREAM mismatch and compatibility, contract-only replay, boundary-only replay, input-dependent lengths and truncated tails, exact deadlines and start eligibility, read-history scope, missing fields, autonomous feedback and SPI timing. |
 | [Transaction-triggered P3](test_reactive.py) | 6 | Rule-only and input-time replays, reverse target, omission, rejection and cancellation, hard and relative deadlines, four matches, partial records, feedback and SPI timing. |
 | [Shared-wire GPIO register](test_shared_wire_register.py) | 1 | Two- and three-clock frames, read-after-write history, pin ownership and turnaround at 1 MHz across 22 phases. |
+| [I²C write and timed GPIO](test_i2c_write.py) | 2 | Standard/Fast-mode writes and target NACKs, timed-mode loader settings, slot order, STOP, replay, sample readback and jumps beyond the loaded image. |
+
+## I2C controller write
+
+The independent target decodes START, MSB-first address and data, the ninth
+clock of each byte and STOP from the two resolved pads. It drives only SDA
+low using its own address match and ACK policy. The monitor checks pull-low
+or release, the controller's SDA release on ACK, START hold, STOP setup, bus
+free time, SCL periods and widths, data setup and the latest data/ACK transition
+during SCL low. The timing limits come from the Standard- and Fast-mode columns
+of the [NXP I²C specification](https://www.nxp.com/docs/en/user-guide/UM10204.pdf).
+
+| SCL | Measured low / high | Transactions at this rate |
+| --- | --- | --- |
+| 100 kHz | 5.00 / 5.00 µs | Four accepted writes, one address NACK, one data NACK |
+| 400 kHz | 1.32 / 1.18 µs | Four accepted writes, one address NACK, one data NACK |
+
+Accepted address/data pairs (hex) were `52/A5`, `29/5A`, `37/00` and `68/FF`.
+The target normally responded 360 ns after SCL fell. For the zero-data case
+it delayed its response to 3.00 µs at 100 kHz and 0.80 µs at 400 kHz. The
+same loaded image produced distinct pin readbacks for success, address NACK
+and data NACK. The timing measurements use a 50 MHz clock and ideal digital
+pull-ups. Run `make COCOTB_TEST_MODULES=test_i2c_write` in `test/` with the
+environment above. [Host programming steps](../docs/info.md#write-one-byte)
+
+Using the same typical IHP library and pre-layout estimation flow as M10,
+timed GPIO maps to 6,018 standard cells including 1,210 flip-flops. Mapped
+area is 106,765.457 µm² (+4.11% over M10). Worst register-to-register setup
+slack at an ideal 20 ns clock is +13.074 ns (M10 was +12.677 ns).
+Post-route timing and precheck for this revision remain to be measured.
 
 ## Transaction-triggered scheduling and latency
 

@@ -21,6 +21,10 @@ module tb ();
   reg [7:0] uio_in;
   reg [7:0] peer_oe;
   tri [7:0] pads;
+  // Enable external pull-ups only for open-drain tests. Other tests observe Z.
+  reg bus_pullups = 0;
+  assign (pull1, pull0) pads[4] = bus_pullups ? 1'b1 : 1'bz;
+  assign (pull1, pull0) pads[5] = bus_pullups ? 1'b1 : 1'bz;
   wire [7:0] uo_out;
   wire [7:0] uio_out;
   wire [7:0] uio_oe;

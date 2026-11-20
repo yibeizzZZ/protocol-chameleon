@@ -197,6 +197,61 @@ byte serializer in the sequencer, queued edge capture, transaction memory, or
 P2–P5 rule and feedback execution. Neither fit in 8×4 tiles nor a maximum
 external clock rate for the instruction sequencer has been established.
 
+## Timed open-drain GPIO and I2C write
+
+Control `05` runs the GPIO loader's current image as a sequence of open-drain
+pin masks. Each byte holds four two-bit masks, least-significant pair first,
+for up to 64 time slots. A one pulls P0 (bit 0) or P1 (bit 1) low; a zero
+releases it. P2 and P3 stay released. Supply external pull-ups on P0 and P1.
+Use an idle bus with the host and target configured for this pin assignment.
+At reset and after EXIT the UART owns these pins, so isolate the bus during
+that handoff.
+
+While the GPIO loader is stopped, write a control selector followed by one
+data byte. A new control cancels a pending selector. CLEAR resets the settings.
+
+| Selector | Timed GPIO setting |
+| --- | --- |
+| `20`, `21` | Hold time when P0 is pulled low or released, respectively. The duration is one plus the data byte in system clocks, with a minimum of two clocks. Both default to two. |
+| `22`, `23` | Optional sample points. Bit 6 enables a comparison to the six-bit slot address in bits 5:0. Both start disabled. At a matching slot the engine reads synchronized P1 one system clock before the next mask. Allow for the input synchronizer when choosing a dwell. |
+| `24` | Six-bit branch destination. A sampled one jumps there after the current dwell. A sampled zero continues to the next slot. Each sampled bit shifts into `uo_out[7:4]`, newest at bit 4. |
+
+RUN_TIMED (`05`) initializes the four-bit history to `0001`, clears the output
+latches and starts at slot zero on the next clock. Reaching the end of the
+loaded image (including a jump past its end) stops and releases both wires.
+STOP (`03`) also releases the wires. The host can read history after either stop.
+Regular GPIO RUN (`02`) retains its original instruction and history semantics.
+
+### Write one byte
+
+At 50 MHz, P0 is SCL (`uio[4]`) and P1 is SDA (`uio[5]`). Generate a program
+for seven-bit address `0x52`, data `0xA5`, and a 400 kHz bus with the command
+below. Use `100` as the last argument for Standard-mode.
+
+```sh
+python3 examples/i2c_write.py 0x52 0xA5 400
+```
+
+1. Enter the GPIO loader with controls `00 83`, then CLEAR (`01`).
+2. Load the printed 16 image bytes as data. For each printed selector/data
+   pair, send the selector as control and its value as data.
+3. Issue `05` and leave the host idle. The program transmits the address with
+   R/W=0 and releases SDA on the ninth clock. An ACK proceeds to DATA, while
+   an address NACK jumps directly to STOP. The data ACK slot also records the
+   target's response. When RUNNING falls, read `uo_out[7:4]`.
+
+| Readback (hex) | Result for this image |
+| --- | --- |
+| `4` | Target acknowledged address and data. |
+| `3` | Target rejected the address. The controller omitted the data byte. |
+| `5` | Target acknowledged the address and rejected the data. |
+
+Address, data, START/STOP and ACK slots come from the program. Speed uses two
+loaded dwell values. This example covers one controller, one data byte and a
+target that never stretches SCL. Reads, repeated START, multi-byte transfers,
+multi-controller arbitration and analog rise times are outside its verified
+scope. [Image generator](../examples/i2c_write.py) · [Pin-level evidence](../test/README.md#i2c-controller-write)
+
 ## SPI status peripheral
 
 The host selects a dedicated SPI bit shifter with the UART configuration writes

@@ -19,6 +19,7 @@ The sequencer implements a subset of P1. The SPI peripheral supplies a bounded P
 
 | Interface | Behavior |
 | --- | --- |
+| I²C controller write | A 16-byte timed GPIO program generates START, a seven-bit write address, one data byte and STOP. It samples both ACK slots and skips the payload on address NACK. An independent target verified 100 and 400 kHz. [Programming and reproduction](docs/info.md#timed-open-drain-gpio-and-i2c-write) |
 | UART | Independent TX and RX. Reset selects 8N1 at 434 clocks per bit, approximately 115200 baud with a 50 MHz clock. Runtime configuration selects 7 or 8 data bits, 1 or 2 stop bits, and 8–4096 clocks per bit. Each direction snapshots its settings at the start of a frame. |
 | Programmable sequencer | Up to 16 one-byte instructions control four bidirectional pins. A program can set levels and directions, sample an input, delay, wait for a rising or falling edge on one pin while sampling another, and branch on the latest sample. The host can read the four most recent sample bits. |
 | SPI target | The host selects CPOL/CPHA and programs four status registers and their read-to-clear masks. A separate serial shifter returns the addressed byte within the same CS window. See the [SPI programming interface](docs/info.md#spi-status-peripheral) and [RTL](src/spi_target.v). |

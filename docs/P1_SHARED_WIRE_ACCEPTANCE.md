@@ -29,13 +29,13 @@ The program retains its bit in the output latch while P1 is released. A READ ena
 From the repository root, use the Linux or WSL simulation environment described in the [test setup](../test/README.md#reproduce-the-functional-tests). The recorded run used Icarus Verilog 12.0 and cocotb 2.0.1.
 
 ```sh
-git diff --exit-code 5b99677 -- src/ info.yaml
+git diff --exit-code 5b99677 9abe5c0 -- src/ info.yaml
 cd test
 make COCOTB_TEST_MODULES=test_shared_wire_register
 python -m cocotb_tools.check_results results.xml
 ```
 
-The first command checks the frozen hardware baseline. A passing simulation prints the program size, phase and reply counts, and the minimum and maximum drive and release delays. To replay the negative control, edit the example byte described above and rerun the same test.
+The first command checks the historical acceptance commit against the frozen hardware baseline. Run the simulation at `9abe5c0` to reproduce that exact version, or at a later revision to check compatibility. A passing simulation prints the program size, phase and reply counts, and the minimum and maximum drive and release delays. To replay the negative control, edit the example byte described above and rerun the same test.
 
 For a manual load, enter the GPIO loader with control bytes `00 83`, clear with `01`, write the 13 program bytes as data, then issue control `02` to run. Keep external drivers released until the loader owns the GPIOs. [Pin mapping and loader strobes](info.md#enter-load-run-stop)
 
