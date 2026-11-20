@@ -5,7 +5,7 @@ project:
   discord:      ""      # Your discord username, for communication and automatically assigning you a Tapeout role (optional)
   description:  ""      # One line description of what your project does
   language:     "Verilog" # other examples include SystemVerilog, Amaranth, VHDL, etc
-  clock_hz:     50000000 # Provisional UART clock, 434 clocks per bit
+  clock_hz:     50000000 # UART defaults to 434 clocks per bit after reset
 
   # How many tiles your design occupies? A single tile is about 202x155 uM.
   tiles: "8x4"          # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 6x2, 8x2, 3x4, 4x4, 5x4, 6x4 or 8x4
@@ -18,6 +18,8 @@ project:
   # Don't forget to also update `PROJECT_SOURCES` in test/Makefile.
   source_files:
     - "project.v"
+    - "serial_config.v"
+    - "protocol_engine.v"
     - "uart_tx.v"
     - "uart_rx.v"
 
@@ -39,20 +41,20 @@ pinout:
   uo[1]: "TX_BUSY"
   uo[2]: "TX_DONE"
   uo[3]: "RX_VALID"
-  uo[4]: "RX_DATA4"
-  uo[5]: "RX_DATA5"
-  uo[6]: "RX_DATA6"
-  uo[7]: "RX_DATA7"
+  uo[4]: "RX_DATA4 / SAMPLE0 (newest)"
+  uo[5]: "RX_DATA5 / SAMPLE1"
+  uo[6]: "RX_DATA6 / SAMPLE2"
+  uo[7]: "RX_DATA7 / SAMPLE3"
 
   # Bidirectional pins
-  uio[0]: "TX_SEND (input)"
+  uio[0]: "HOST_STROBE (input)"
   uio[1]: "UART_RX (input)"
-  uio[2]: "RX_FRAMING_ERROR (output)"
-  uio[3]: ""
-  uio[4]: "RX_DATA0 (output)"
-  uio[5]: "RX_DATA1 (output)"
-  uio[6]: "RX_DATA2 (output)"
-  uio[7]: "RX_DATA3 (output)"
+  uio[2]: "RX_FRAMING_ERROR / ENGINE_RUNNING (output)"
+  uio[3]: "CONFIG_MODE / ENGINE_CONTROL (input)"
+  uio[4]: "RX_DATA0 / P0"
+  uio[5]: "RX_DATA1 / P1"
+  uio[6]: "RX_DATA2 / P2"
+  uio[7]: "RX_DATA3 / P3"
 
 # Do not change!
 yaml_version: 6
