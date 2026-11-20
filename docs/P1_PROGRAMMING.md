@@ -17,3 +17,19 @@ Each instruction occupies one of 16 bytes. Use one instruction per line, whitesp
 ## I2C controller write
 
 A source containing `I2C_WRITE address data rate_khz` uses the existing timed-GPIO image builder. Supply a seven-bit address, one data byte, and 100 or 400 kHz at a 50 MHz system clock. [Wire contract and readback](info.md#write-one-byte)
+
+## Reproduce from source
+
+With the [simulation dependencies](../test/README.md#reproduce-the-functional-tests) installed and the Python environment active, run this from the repository root:
+
+```sh
+make -C test p1
+```
+
+The target checks the assembler, invokes the public compiler CLI, parses its JSON output and sends the image, selector/data pairs and RUN command through the top-level pins. A controller reads and writes the shared-wire register. A separate I2C target decodes the address and payload and returns an ACK. The log reports the observed bytes, including a second run with a changed payload.
+
+To try your own I2C source, create a file containing e.g. `I2C_WRITE 0x52 0x3C 100`. Supply the expected wire values separately to the monitor. A relative source path is resolved from the repository root.
+
+```sh
+make -C test p1 P1_I2C_SOURCE=/path/to/my-write.p1 P1_EXPECT_ADDRESS=0x52 P1_EXPECT_DATA=0x3C P1_EXPECT_RATE=100
+```

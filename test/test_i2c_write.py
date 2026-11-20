@@ -23,7 +23,7 @@ async def install(p, address, value, rate):
         await p.write(setting, mode=0)
 
 
-async def target(p, address, accept_data, rate, target_delay=18):
+async def target(p, address, accept_data, rate, target_delay=18, *, run_control=5):
     # Timing minima in 20 ns system cycles. DATA setup is rounded up.
     period, low_min, high_min, setup, start_hold, stop_setup, bus_free = (
         (500, 235, 200, 13, 200, 200, 235) if rate == 100 else
@@ -31,7 +31,7 @@ async def target(p, address, accept_data, rate, target_delay=18):
     )
     valid_max = 172 if rate == 100 else 45  # 3.45 us or 0.9 us, rounded down.
     dut = p.dut
-    await p.write(5)
+    await p.write(run_control)
     assert p.running, "timed GPIO did not start"
     p.host(0, 0, 0)
     dut.uio_in.value = p.inputs

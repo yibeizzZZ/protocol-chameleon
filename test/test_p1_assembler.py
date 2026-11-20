@@ -33,8 +33,7 @@ class AssemblerTests(unittest.TestCase):
         self.assertEqual(bytes(compile_source(source)["image"]), expected)
 
     def test_i2c_matches_documented_loader_sequence(self):
-        source = (EXAMPLES / "i2c_write.p1").read_text()
-        program = compile_source(source)
+        program = compile_source("I2C_WRITE 0x52 0xA5 400")
         self.assertEqual(program["run"], 5)
         self.assertEqual(bytes(program["image"]).hex(), "e0d11eed7bb4ef51b447fb1eed51b400")
         self.assertEqual(program["settings"], [[32, 32], [33, 58], [34, 93], [35, 120], [36, 57]])

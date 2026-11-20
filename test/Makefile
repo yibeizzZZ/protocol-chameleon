@@ -5,7 +5,7 @@
 SIM ?= icarus
 FST ?= -fst # Use more efficient FST format
 TOPLEVEL_LANG ?= verilog
-SRC_DIR = $(PWD)/../src
+SRC_DIR = $(CURDIR)/../src
 PROJECT_SOURCES = project.v serial_config.v protocol_engine.v spi_target.v trial_checker.v transaction_observer.v feedback_policy.v uart_tx.v uart_rx.v
 
 ifneq ($(GATES),yes)
@@ -31,7 +31,7 @@ VERILOG_SOURCES += $(wildcard $(PDK_LIBS_REF)/$(PDK_CELL_PREFIX)_stdcell/verilog
 VERILOG_SOURCES += $(PDK_LIBS_REF)/$(PDK_CELL_PREFIX)_stdcell/verilog/$(PDK_CELL_PREFIX)_stdcell.v
 
 # this gets copied in by the GDS action workflow
-VERILOG_SOURCES += $(PWD)/gate_level_netlist.v
+VERILOG_SOURCES += $(CURDIR)/gate_level_netlist.v
 
 endif
 
@@ -39,11 +39,17 @@ endif
 COMPILE_ARGS 		+= -I$(SRC_DIR)
 
 # Include the testbench sources:
-VERILOG_SOURCES += $(PWD)/tb.v
+VERILOG_SOURCES += $(CURDIR)/tb.v
 TOPLEVEL = tb
 
 # List test modules to run, separated by commas and without the .py suffix:
-COCOTB_TEST_MODULES = test_uart,test_engine,test_spi,test_byte_program,test_trials,test_feedback,test_transactions,test_reactive,test_shared_wire_register,test_i2c_write
+COCOTB_TEST_MODULES = test_uart,test_engine,test_spi,test_byte_program,test_trials,test_feedback,test_transactions,test_reactive,test_shared_wire_register,test_i2c_write,test_p1_sources
 
 # include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
+
+.PHONY: p1
+p1:
+	cd .. && python -m unittest discover -s test -p test_p1_assembler.py
+	$(MAKE) sim COCOTB_TEST_MODULES=test_p1_sources
+	python -m cocotb_tools.check_results $(COCOTB_RESULTS_FILE)

@@ -48,9 +48,9 @@ def drive(pins, clock, data=None):
     pins.dut.peer_oe.value = pins.peer_mask
 
 
-async def run_exchanges(pins, phase_ps):
+async def run_exchanges(pins, phase_ps, *, run_control=2):
     dut = pins.dut
-    await pins.write(2)  # RUN initializes the stored bit to zero.
+    await pins.write(run_control)  # RUN initializes the stored bit to zero.
     pins.host(0, 0, 0)
     drive(pins, 0)
     await pins.tick(3)
