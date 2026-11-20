@@ -43,7 +43,7 @@ VERILOG_SOURCES += $(CURDIR)/tb.v
 TOPLEVEL = tb
 
 # List test modules to run, separated by commas and without the .py suffix:
-COCOTB_TEST_MODULES = test_uart,test_engine,test_spi,test_byte_program,test_trials,test_feedback,test_transactions,test_reactive,test_shared_wire_register,test_i2c_write,test_p1_sources
+COCOTB_TEST_MODULES = test_uart,test_engine,test_spi,test_byte_program,test_trials,test_feedback,test_transactions,test_reactive,test_shared_wire_register,test_i2c_write,test_p1_sources,test_p1_heldout
 
 # include cocotb's make rules to take care of the simulator setup
 include $(shell cocotb-config --makefiles)/Makefile.sim
@@ -51,5 +51,5 @@ include $(shell cocotb-config --makefiles)/Makefile.sim
 .PHONY: p1
 p1:
 	cd .. && python -m unittest discover -s test -p test_p1_assembler.py
-	$(MAKE) sim COCOTB_TEST_MODULES=test_p1_sources
+	$(MAKE) sim COCOTB_TEST_MODULES=test_p1_sources,test_p1_heldout
 	python -m cocotb_tools.check_results $(COCOTB_RESULTS_FILE)

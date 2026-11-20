@@ -72,3 +72,15 @@ class AssemblerTests(unittest.TestCase):
                        "SPI\nQUIET | MOSI_DATA MISO_DATA", "SPI\nSTATUS_REG 4 0"):
             with self.subTest(source=source), self.assertRaisesRegex(ValueError, "line "):
                 compile_source(source)
+
+    def test_utf8_bom_and_decimal_literals(self):
+        p = compile_source("\ufeffDELAY 08\nDIR 0b10\nDRIVE 0x0A")
+        self.assertEqual(p["image"], [0x58, 0x22, 0x1A])
+
+    def test_numeric_timed_branches_can_reach_padding_or_stop(self):
+        for slot in (1, 4, 63):
+            with self.subTest(slot=slot):
+                program = compile_source(f"TIMED 2 2\nCHECK 0 {slot}")
+                self.assertEqual(program["settings"][-1], [0x24, slot])
+        with self.assertRaisesRegex(ValueError, "line 2"):
+            compile_source("TIMED 2 2\nCHECK 0 64")

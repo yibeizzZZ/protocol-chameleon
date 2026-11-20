@@ -1,6 +1,6 @@
 # Programming the P1 pin engines
 
-Run `python3 p1.py examples/shared_wire_register.p1` or `python3 p1.py examples/i2c_write.p1` from the repository root. The compiler needs only Python 3. The JSON result contains integer `image` bytes, ordered `settings` pairs and the `run` control byte. To apply it from UART mode, enter the GPIO loader with control writes `00 83`, clear with `01`, write the image as data, send each selector as control and its value as data, then send `run` as control. [Pin strobes and ownership](info.md#enter-load-run-stop)
+Run `python3 p1.py examples/shared_wire_register.p1` or `python3 p1.py examples/i2c_write.p1` from the repository root. The compiler uses the Python 3.9+ standard library. The JSON result contains integer `image` bytes, ordered `settings` pairs and the `run` control byte. To apply it from UART mode, enter the GPIO loader with control writes `00 83`, clear with `01`, write the image as data, send each selector as control and its value as data, then send `run` as control. [Pin strobes and ownership](info.md#enter-load-run-stop)
 
 ## GPIO assembly
 
@@ -26,7 +26,7 @@ With the [simulation dependencies](../test/README.md#reproduce-the-functional-te
 make -C test p1
 ```
 
-The target checks the assembler, invokes the public compiler CLI, parses its JSON output and sends the image, selector/data pairs and RUN command through the top-level pins. A controller reads and writes the shared-wire register. A separate I2C target decodes the address and payload and returns an ACK. The log reports the observed bytes, including a second run with a changed payload.
+The target checks the assembler, invokes the public compiler CLI, parses its JSON output and sends the image, selector/data pairs and RUN command through the top-level pins. A controller reads and writes the shared-wire register. A separate I2C target decodes the address and payload and returns an ACK. The log reports the observed bytes, including a second run with a changed payload. The same command runs a custom timed pulse, an annotated SPI stream and the [held-out two-vote interlock](P1_HELDOUT.md).
 
 To try your own I2C source, create a file containing e.g. `I2C_WRITE 0x52 0x3C 100`. Supply the expected wire values separately to the monitor. A relative source path is resolved from the repository root.
 
@@ -36,7 +36,7 @@ make -C test p1 P1_I2C_SOURCE=/path/to/my-write.p1 P1_EXPECT_ADDRESS=0x52 P1_EXP
 
 ## Custom timed GPIO
 
-Start with `TIMED low_clocks released_clocks`. Each duration is 2–256 system clocks and is selected by P0's output enable. Each `SLOT mask` pulls low the named mask bits (P0 is bit 0, P1 is bit 1); unset bits release the pins. `CHECK mask label` emits the same slot, samples synchronized P1 near the end and branches on one. Up to two CHECK slots may share one destination. Labels address individual slots. Four slots pack into each byte, and unused trailing slots release both lines for the released-P0 dwell. The limit is 64 slots. [Conditional pulse example](../examples/conditional_pulse.p1)
+Start with `TIMED low_clocks released_clocks`. Each duration is 2–256 system clocks and is selected by P0's output enable. Each `SLOT mask` pulls low the named mask bits (P0 is bit 0, P1 is bit 1); unset bits release the pins. `CHECK mask label` emits the same slot, samples synchronized P1 near the end and branches on one. Up to two CHECK slots may share one destination. Labels address individual slots. Four slots pack into each byte. Unused slots in the final byte release both lines for the released-P0 dwell. A numeric branch destination may select any slot from 0 to 63, including padding. A branch past the last loaded byte stops the engine and releases the pins. [Conditional pulse example](../examples/conditional_pulse.p1)
 
 ## SPI byte programs and logical transactions
 

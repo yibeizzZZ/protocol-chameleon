@@ -18,7 +18,8 @@ LABEL = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 def number(token, maximum):
     try:
-        n = int(token, 0)
+        base = 10 if token.lstrip("+-").isdigit() else 0
+        n = int(token, base)
     except ValueError:
         raise ValueError(f"expected an integer, got {token!r}") from None
     if not 0 <= n <= maximum:
@@ -101,7 +102,7 @@ def compile_source(source):
     labels, rows = {}, []
     mode, header = "GPIO", []
     header_line = None
-    for line_no, raw in enumerate(source.splitlines(), 1):
+    for line_no, raw in enumerate(source.removeprefix("\ufeff").splitlines(), 1):
         line = raw.partition("#")[0].strip()
         if ":" in line:
             name, line = line.split(":", 1)
@@ -155,7 +156,7 @@ def compile_source(source):
                     image.append(0)
                 image[-1] |= number(args[0], 3) << (2 * (index % 4))
                 if op == "CHECK":
-                    target = destination(args[1], labels, len(rows))
+                    target = destination(args[1], labels, 64)
                     if len(checkpoints) == 2 or (branch is not None and target != branch):
                         raise ValueError("at most two checkpoints can share one branch destination")
                     branch = target
