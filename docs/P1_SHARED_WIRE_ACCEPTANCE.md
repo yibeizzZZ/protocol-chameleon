@@ -39,4 +39,4 @@ The first command checks the historical acceptance commit against the frozen har
 
 For a manual load, enter the GPIO loader with control bytes `00 83`, clear with `01`, write the 13 program bytes as data, then issue control `02` to run. Keep external drivers released until the loader owns the GPIOs. [Pin mapping and loader strobes](info.md#enter-load-run-stop)
 
-This is a team-defined protocol on zero-delay RTL. The measured bounds apply to the stated pin timing and sampled phases. The product acceptance test for P1 still calls for an independent evaluator to supply a previously undisclosed protocol after RTL freeze. The next such test can reuse the criteria above with a new wire contract and an independently written peer.
+This is a team-defined protocol on zero-delay RTL. The measured bounds apply to the stated pin timing and sampled phases. A subsequent AI-administered evaluation used a protocol disclosed after RTL freeze and an independently written peer. [Two-vote interlock results](P1_HELDOUT.md)

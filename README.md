@@ -4,7 +4,7 @@ Protocol Chameleon is FoRG's prototype for a reprogrammable protocol emulator on
 
 **Milestone 10 lets a loaded test plan react to DUT traffic.** In the STREAM example, the first accepted read of A schedules B's notification twelve clocks later, while A still needs another read. Changing one rule byte moves that notification to the second read. A plan can select either notification pin, the wire tag, the occurrence, an observed or accepted transaction, the delay and a service deadline. [Programming example](docs/info.md#transaction-triggered-p3-notifications) · [Verification results](test/README.md)
 
-Build the editable P1 examples and check the transactions on the resolved RTL pins with `make -C test p1` in the simulation environment. [P1 programming guide](docs/P1_PROGRAMMING.md)
+Build the editable P1 examples and check the transactions on the resolved RTL pins with `make -C test p1` in the simulation environment. [P1 programming guide](docs/P1_PROGRAMMING.md) · [Held-out protocol and results](docs/P1_HELDOUT.md)
 
 ## The experiment
 

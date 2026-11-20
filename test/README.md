@@ -1,6 +1,6 @@
 # RTL verification
 
-The Tiny Tapeout RTL regression passed **48 tests, 0 failed, 0 skipped** on the RTL with timed GPIO. It includes the original 45 M10 tests, the [P1 shared-wire register test](../docs/P1_SHARED_WIRE_ACCEPTANCE.md) and two tests for I²C writes and timed GPIO controls. All suites use the top-level harness and observe external inputs, outputs, enables or resolved pads.
+The default RTL regression passed **53 tests, 0 failed, 0 skipped** in a fresh checkout of `fa1ce36`. The 48 existing tests are joined by four source-to-pin examples and a held-out protocol. All RTL suites use the top-level harness. Eight host-side tests also check the P1 assembler. Run `make -C test p1` from the repository root for the host tests and the five source-to-pin cases.
 
 ## Reproduce the functional tests
 
@@ -29,6 +29,8 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [Transaction-triggered P3](test_reactive.py) | 6 | Rule-only and input-time replays, reverse target, omission, rejection and cancellation, hard and relative deadlines, four matches, partial records, feedback and SPI timing. |
 | [Shared-wire GPIO register](test_shared_wire_register.py) | 1 | Two- and three-clock frames, read-after-write history, pin ownership and turnaround at 1 MHz across 22 phases. |
 | [I²C write and timed GPIO](test_i2c_write.py) | 2 | Standard/Fast-mode writes and target NACKs, timed-mode loader settings, slot order, STOP, replay, sample readback and jumps beyond the loaded image. |
+| [Compiled P1 examples](test_p1_sources.py) | 4 | Load editable GPIO, I²C, timed-pulse and annotated SPI sources. Check changed payloads and transaction boundaries on the pins. |
+| [Held-out two-vote interlock](test_p1_heldout.py) | 1 | Check pin ownership, response deadline and vote history across 114 frames. [Protocol and seal](../docs/P1_HELDOUT.md) |
 
 ## I2C controller write
 

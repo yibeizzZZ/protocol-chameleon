@@ -14,6 +14,8 @@ Each instruction occupies one of 16 bytes. Use one instruction per line, whitesp
 | `JUMP reply`, `JUMP_ONE reply` | Branch unconditionally or when the most recent sample was one. |
 | `RISE_SAMPLE P0 P1`, `FALL_SAMPLE P0 P1` | Wait for the edge on the first pin and sample the second. |
 
+At 50 MHz a system clock is 20 ns. RUN clears the output latches and enables. Edge waits see synchronized inputs and can miss an edge while another instruction is executing. When designing a clocked peripheral, specify both half-periods and count the instructions from input detection to output and back to the next wait. [Sequencer timing and examples](info.md#external-edges-and-turnaround)
+
 ## I2C controller write
 
 A source containing `I2C_WRITE address data rate_khz` uses the existing timed-GPIO image builder. Supply a seven-bit address, one data byte, and 100 or 400 kHz at a 50 MHz system clock. [Wire contract and readback](info.md#write-one-byte)
