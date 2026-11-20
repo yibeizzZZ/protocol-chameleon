@@ -1,6 +1,6 @@
-# Milestones 1–5 verification
+# Milestones 1–7 verification
 
-The Tiny Tapeout RTL regression passed **16 tests, 0 failed, 0 skipped**. The twelve Milestone 1–4 cases still pass alongside four SPI peripheral cases. All oracles use external inputs, outputs, enables, or resolved pads.
+The Tiny Tapeout RTL regression passed **24 tests, 0 failed, 0 skipped**. This includes all 19 earlier cases and five P3/P4 cases. All oracles use external inputs, outputs, enables, or resolved pads.
 
 ## Reproduce the functional tests
 
@@ -25,6 +25,32 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 
 ## SPI measurements
 
+With the trial checker running, the [P3/P4 suite](test_trials.py) exercised
+both physical chip selects at the same logical address with independent status
+history. The loaded M6 stream program ran at 5 MHz against a 50 MHz system
+clock in modes 0–3 and 22 relative phases per mode. Across 969 changing
+payload bits, launch-to-MISO-valid measured 40.1–60.0 ns; the minimum
+setup before sampling was 40.0 ns in each mode.
+
+The independent transaction oracle also ran 112 deterministic captures
+(16 schedules × seven scenarios), deriving verdict, source and exact tick
+from the external CS schedule. These include simultaneous and overlapping
+notifications, a missing B service, a late A service, duplicates, incorrect command or
+address, out-of-order reads and completions exactly on the deadline.
+Additional cases replay identical B/B/A traffic with changed rules, reverse
+the event sequence, disable one source, check latched evidence after further
+traffic, and distinguish invalid plans, short captures and colliding selects
+as UNKNOWN. The matrix produces a timeout for a completion one clock late.
+
+The [byte program suite](test_byte_program.py) replaces an image through the pins without resetting the DUT. It checks history-dependent command length, read completion versus abort, multiple requests under one CS, invalid commands and addresses, incomplete images, branch targets outside a shortened image, and return to the original M5 profile. Both loaded images were also swept across all four modes and the same 22 phases per mode.
+
+| Loaded image | Changing MISO bits measured over four modes | Launch to valid | Minimum setup | CS assertion to drive |
+| --- | ---: | ---: | ---: | ---: |
+| Command poll | 616 | 40.1–60.0 ns | 40.0 ns | 40.1–60.0 ns |
+| Address stream | 1,144 | 40.1–60.0 ns | 40.0 ns | 40.1–60.0 ns |
+
+The following per-mode figures are for the M5 compatibility image, rerun in the same M6 regression.
+
 The independent SPI master ran 5 MHz SCLK against the 50 MHz system clock. Each mode was exercised at 22 launch offsets across one 20 ns system period, including offsets 0.1 ns before and after a system rising edge. Each offset included a first read and a repeat read. The monitor recorded resolved MISO transitions and checked the expected bit throughout a 20 ns setup / 10 ns hold window, including header bits and adjacent equal bits.
 
 | SPI mode | Measured payload transitions | Launch edge to valid MISO | Minimum setup before sample | CS assertion to first MISO drive |
@@ -38,7 +64,7 @@ Launch-to-valid spans 2.005–3.000 system periods depending on phase. The targe
 
 ## Synthesis and basic timing
 
-The commands below reproduce the estimate from the repository root. They run Yosys/ABC and standalone OpenSTA. The image supplies the binaries; no LibreLane or OpenROAD flow is invoked.
+The commands below reproduce the M7 Yosys/ABC mapping and standalone prelayout OpenSTA estimate from the repository root using the same tool image and typical cell library as M5 and M6.
 
 ```sh
 out=$(mktemp -d)
@@ -52,16 +78,16 @@ docker run --rm --entrypoint bash -v "$PWD:/work:ro" -v "$out:/out" -w /work \
   test/synth_estimate.sh
 ```
 
-The [synthesis script](synth_estimate.sh) writes the mapped netlist, `yosys.log` and `sta.log` in the output directory. Yosys 0.66 completed the structural check and mapped the flattened top to the IHP SG13 CMOS5L typical library (1.20 V, 25 °C). [OpenSTA 2.7.0 constraints](prelayout_sta.tcl) use an ideal 20 ns system clock. Separate reports measure paths from any register to the shared bit-7 data and enable ports with zero external load and zero output delay.
+The [synthesis script](synth_estimate.sh) writes the mapped netlist and `yosys.log` in the output directory. Yosys 0.66 completed the structural check and mapped the flattened top to the IHP SG13 CMOS5L typical library (1.20 V, 25 °C). M4 and M5 also have historical [prelayout STA](prelayout_sta.tcl) results at an ideal 20 ns clock; STA was not run for M6.
 
-| Quantity | M4 baseline | M5 |
-| --- | ---: | ---: |
-| Mapped standard cells (excluding Yosys metadata) | 1,209 | 1,761 |
-| Flip-flops | 286 | 390 |
-| Sum of library cell areas | 24,464.727 µm² | 33,109.322 µm² |
-| Sequential cell area | 14,010.797 µm² | 19,105.632 µm² |
-| Worst reported register-to-register setup slack | +16.978 ns | +17.144 ns |
-| Register to bit-7 data / enable block-port arrival | — | 0.807 ns / 0.761 ns |
+| Quantity | M4 baseline | M5 | M6 | M7 |
+| --- | ---: | ---: | ---: | ---: |
+| Mapped standard cells (excluding Yosys metadata) | 1,209 | 1,761 | 1,948 | 3,244 |
+| Flip-flops | 286 | 390 | 388 | 601 |
+| Sum of library cell areas | 24,464.727 µm² | 33,109.322 µm² | 34,346.857 µm² | 54,630.072 µm² |
+| Sequential cell area | 14,010.797 µm² | 19,105.632 µm² | 19,007.654 µm² | 29,442.269 µm² |
+| Worst reported register-to-register setup slack | +16.978 ns | +17.144 ns | — | +15.232 ns |
+| Register to bit-7 data / enable block-port arrival | — | 0.807 ns / 0.761 ns | — | 0.769 ns / 0.810 ns |
 
 ## External timing and remaining risks
 
@@ -69,6 +95,6 @@ For the documented clocked reply program, both request values enabled P2 on the 
 
 The sequencer has no edge queue. An external transition during another instruction can be lost, and the suite does not exhaust program images or input phases. Reset and EXIT restore UART output enables, so the peer must release shared pins beforehand. Digital X resolution can flag ownership errors; it cannot measure pad skew, electrical contention, or metastability.
 
-The SPI accelerator uses a fixed 24-bit register-read transaction; the generic sequencer still has the latency described above. The measurements cover a digital controller using a 50% duty cycle and changing MOSI on launch edges. They do not characterize the minimum MOSI setup/hold aperture, synchronizer metastability, noisy clocks, or arbitrary duty cycles.
+The accelerated byte interpreter executes one rule per eight clocks on the external bus. The measured timing covers a digital controller using a 50% duty cycle and changing MOSI on launch edges. The minimum MOSI setup/hold aperture, synchronizer metastability, noisy clocks, arbitrary duty cycles and worst-case physical delay through the new rule decoder remain uncharacterized.
 
 The area estimate excludes routing, clock distribution, filler and pad overhead. The timing estimate excludes extracted interconnect, actual pad/board loading, hold analysis and other process/voltage/temperature corners. Physical fit in 8×4 tiles and silicon-level SPI timing remain unverified. No placement, routing, GDS, DRC or LVS was run.

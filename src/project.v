@@ -31,6 +31,12 @@ module tt_um_example (
   wire seven_bits, two_stops;
   wire enter_engine, engine_selected, engine_running;
   wire enter_spi, spi_selected, miso, miso_oe;
+  wire start_byte_program;
+  wire [2:0] byte_state;
+  wire [15:0] byte_rule;
+  wire trial_selected, bank_enable, bank_id;
+  wire frame_start, frame_end, byte_valid, partial_byte;
+  wire [7:0] observed_byte, trial_outputs;
   wire uart_host = !engine_selected && !spi_selected;
   wire [3:0] engine_out, engine_oe, engine_samples;
   serial_config settings (
@@ -41,15 +47,29 @@ module tt_um_example (
 
   spi_target peripheral (
     .clk(clk), .rst_n(rst_n), .enter(enter_spi), .selected(spi_selected),
-    .strobe(strobe), .control(config_mode), .host_byte(ui_in),
-    .cs_n(uio_in[4]), .sclk(uio_in[5]), .mosi(uio_in[6]),
+    .start_byte_program(start_byte_program), .byte_state(byte_state), .byte_rule(byte_rule),
+    .strobe(strobe && !trial_selected), .control(config_mode), .host_byte(ui_in),
+    .cs_n(uio_in[4] && (!trial_selected || uio_in[1])), .sclk(uio_in[5]), .mosi(uio_in[6]),
+    .bank_enable(bank_enable), .bank_id(bank_id),
+    .frame_start(frame_start), .frame_end(frame_end), .byte_valid(byte_valid),
+    .partial_byte(partial_byte), .observed_byte(observed_byte),
     .miso(miso), .miso_oe(miso_oe)
+  );
+
+  trial_checker trials (
+    .clk(clk), .rst_n(rst_n), .spi_selected(spi_selected),
+    .strobe(strobe), .control(config_mode), .host_byte(ui_in),
+    .cs_n({uio_in[1], uio_in[4]}), .frame_start(frame_start), .frame_end(frame_end),
+    .byte_valid(byte_valid), .partial_byte(partial_byte), .observed_byte(observed_byte),
+    .selected(trial_selected), .bank_enable(bank_enable), .bank_id(bank_id),
+    .outputs(trial_outputs)
   );
 
   protocol_engine engine (
     .clk(clk), .rst_n(rst_n), .enter(enter_engine),
     .strobe(strobe), .control(config_mode), .host_byte(ui_in),
     .pins_in(uio_in[7:4]), .selected(engine_selected), .running(engine_running),
+    .start_byte_program(start_byte_program), .byte_state(byte_state), .byte_rule(byte_rule),
     .samples(engine_samples), .pins_out(engine_out), .pins_oe(engine_oe)
   );
 
@@ -64,12 +84,13 @@ module tt_um_example (
   wire [7:0] rx_data;
   wire rx_valid, rx_error;
   uart_rx receiver (
-    .clk(clk), .rst_n(rst_n), .rx(uio_in[1]),
+    .clk(clk), .rst_n(rst_n), .rx(trial_selected || uio_in[1]),
     .bit_reload(bit_reload), .seven_bits(seven_bits), .two_stops(two_stops),
     .data(rx_data), .valid(rx_valid), .framing_error(rx_error)
   );
 
-  assign uo_out  = {engine_selected ? engine_samples : rx_data[7:4], rx_valid, done, busy, tx};
+  assign uo_out  = trial_selected ? trial_outputs :
+                   {engine_selected ? engine_samples : rx_data[7:4], rx_valid, done, busy, tx};
   wire [3:0] upper_out = spi_selected ? {miso, 3'b0} :
                          engine_selected ? engine_out : rx_data[3:0];
   wire [3:0] upper_oe = spi_selected ? {miso_oe, 3'b0} :

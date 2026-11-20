@@ -9,6 +9,9 @@ module protocol_engine (
     input  wire       control,
     input  wire [7:0] host_byte,
     input  wire [3:0] pins_in,
+    input  wire [2:0] byte_state,
+    output wire [15:0] byte_rule,
+    output wire       start_byte_program,
     output reg        selected,
     output reg        running,
     output reg  [3:0] samples,
@@ -20,10 +23,17 @@ module protocol_engine (
                    JUMP_ONE = 4'h6, JUMP = 4'h7, RISE = 4'h8, FALL = 4'h9;
 
   // Only the loaded prefix is executable. No reset network on program storage.
-  reg [7:0] code_mem [0:15];
+  // Both interpreters fetch from the same 128 bits. GPIO mode reads either
+  // byte; the serial shifter needs the entire state rule at a byte boundary.
+  reg [7:0] even_code [0:7];
+  reg [7:0] odd_code [0:7];
   reg [4:0] length, pc;
   reg [3:0] delay_left;
-  wire [7:0] instruction = code_mem[pc[3:0]];
+  wire [2:0] fetch_addr = selected ? pc[3:1] : byte_state;
+  wire [7:0] even_byte = even_code[fetch_addr];
+  wire [7:0] odd_byte = odd_code[fetch_addr];
+  wire [7:0] instruction = pc[0] ? odd_byte : even_byte;
+  assign byte_rule = {1'b0, byte_state} < length[4:1] ? {even_byte, odd_byte} : 16'd0;
   wire [3:0] opcode = instruction[7:4];
   wire [3:0] operand = instruction[3:0];
 
@@ -45,11 +55,15 @@ module protocol_engine (
   wire previous_clock = pin_previous[operand[3:2]];
   wire matched_edge = (clock_bit != previous_clock) && (clock_bit == (opcode == RISE));
   wire command_write = selected && strobe && control;
+  assign start_byte_program = command_write && host_byte == 8'h04 &&
+                              !running && length != 0 && !length[0];
   wire append = selected && strobe && !control && !running && length < 5'd16;
 
   always @(posedge clk) begin
-    if (rst_n && append)
-      code_mem[length[3:0]] <= host_byte;
+    if (rst_n && append) begin
+      if (length[0]) odd_code[length[3:1]] <= host_byte;
+      else even_code[length[3:1]] <= host_byte;
+    end
   end
 
   always @(posedge clk) begin
@@ -68,7 +82,7 @@ module protocol_engine (
         length   <= 0;
         samples  <= 0;
       end
-    end else if (command_write && host_byte == EXIT) begin
+    end else if ((command_write && host_byte == EXIT) || start_byte_program) begin
       selected <= 1'b0;
       running  <= 1'b0;
       pins_oe  <= 0;

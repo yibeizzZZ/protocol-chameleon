@@ -38,7 +38,8 @@ async def configure(p, addr, value, mask):
     await p.write(mask, mode=0)
 
 
-async def transaction(p, mode, request, expected, phase=0, bit_count=None):
+async def transaction(p, mode, request, expected, phase=0, bit_count=None, payload_start=16,
+                      sensor=0):
     """One CS window. Return clock-to-valid times on toggling payload bits and CS-to-OE."""
     dut = p.dut
     idle, cpha = divmod(mode, 2)
@@ -55,7 +56,9 @@ async def transaction(p, mode, request, expected, phase=0, bit_count=None):
                 changes.append((now(), value))
 
     def drive(cs, sclk, mosi):
-        p.inputs = (p.inputs & 0x0F) | (cs << 4) | (sclk << 5) | (mosi << 6)
+        p.inputs = (p.inputs & 0x0F) | ((1 if sensor else cs) << 4) | (sclk << 5) | (mosi << 6)
+        if sensor:
+            p.inputs = (p.inputs & ~2) | (cs << 1)
         dut.uio_in.value = p.inputs
 
     drive(1, idle, 0)
@@ -101,7 +104,7 @@ async def transaction(p, mode, request, expected, phase=0, bit_count=None):
         valid_at, level = changes[k]
         assert level == str(value) and valid_at <= sample - 20000
         assert k+1 == len(times) or times[k+1] >= sample + 10000
-        if i >= 16 and rx[i] != rx[i-1]:
+        if i >= payload_start and rx[i] != rx[i-1]:
             assert valid_at >= launch, "MISO changed before the specified launch edge"
             delays.append(valid_at - launch)
     first_drive = next(t for t, v in changes if t >= select and v == "0")

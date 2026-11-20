@@ -225,7 +225,7 @@ incomplete selector. Register programming is ignored during an active frame.
 Reset selects UART, clears the table and history, and sets SPI mode 0. Exit
 and re-entry preserve the table, mode and history; the pending selector is discarded.
 
-**Wire transaction.** Keep CS low for three MSB-first bytes. Send opcode
+**Default wire transaction (`00 82` entry).** Keep CS low for three MSB-first bytes. Send opcode
 `A6`, an address from `00` through `03`, then a dummy byte. MISO carries zero
 during the first two bytes and returns the status during the third. On the
 last sample edge of a valid read, that address becomes seen. Later reads
@@ -246,3 +246,151 @@ CS, clock and data pass through two-stage synchronizers. The address sample
 preloads the shifter; detecting a launch edge updates MISO in one registered
 operation. Raw CS deassertion gates the output enable for immediate release
 in RTL. See the [timing measurements and limits](../test/README.md).
+
+## Load a byte transaction program
+
+The GPIO engine's 16-byte store also holds up to eight two-byte state rules.
+In byte execution mode the SPI shifter handles every bit. On the final sample
+edge of each byte, exactly one rule consumes that byte, selects the next state,
+and preloads the reply for the next byte. The first outgoing byte after CS
+assertion is zero. The host does not intervene between bytes.
+
+1. From UART, enter the GPIO loader with control writes `00 83`. Keep external
+   drivers released until the loader owns the pins. It starts with an empty image.
+2. Write rule bytes in address order, one strobe per byte with `uio[3]=0`.
+   While stopped, control `01` clears the image for a retry.
+3. Write control `04` to select byte execution. Empty or odd-length images,
+   and requests while a GPIO program is running, are ignored. Control `02`
+   still runs the same store as GPIO instructions. The image is immutable
+   during byte execution.
+4. Use the SPI pins, mode selection, table and history controls documented
+   above. Before the first CS window, drive CS high and SCLK idle for at least
+   100 ns. To replace the image, deselect, release the controller's drivers,
+   exit to UART with control `00`, then repeat from step 1. Table values and
+   committed history survive this sequence. Direct UART entry `00 82` always
+   selects the original M5 transaction profile.
+
+**Rule encoding.** In the first byte, bits 7:4 select the operation, bit 3
+must be zero, and bits 2:0 select the target state. The second byte is the
+argument. CS assertion starts at state 0. Unless a rule emits a reply, the
+next outgoing byte is zero.
+
+| High nibble | Operation on the just-received byte | Next state |
+| --- | --- | --- |
+| 0 | End this logical frame; emit zeros while CS remains low | Quiet until deselect |
+| 1 | Compare the received byte with the argument | Target on equality, otherwise following state |
+| 2 | Schedule status from the received register address (0–3); remember the address for commit | Target, or quiet on invalid address |
+| 3 | Schedule status from the register in argument bits 1:0; remember its address | Target |
+| 4 | Mark the remembered address as seen and discard the pending address; no effect if none | Target |
+| 5 | Schedule the argument byte as a literal reply | Target |
+| 6 | Check the seen bit of the register in argument bits 1:0 | Target if seen, otherwise following state |
+| 7 | Consume one byte without emitting a reply | Target |
+
+A branch back to state 0 can start a new logical request while CS stays low.
+A pending address refers to the most recent status read. Only operation 4
+commits it. Deselecting discards any partial byte and uncommitted address.
+Falling through state 7, reaching an unloaded state, or executing a reserved
+encoding enters quiet behavior. A reply already scheduled on the preceding
+byte still shifts out. The quiet state continues to drive zero until CS rises.
+
+**Two example images.** Configure register 1 with base `ED` and clear mask
+`48`. Control `01` in SPI mode rearms the history before each example.
+
+| Image (hex, in load order) | Controller exchange and expected MISO |
+| --- | --- |
+| Command poll: `12 CA 00 00 65 01 34 01 41 00 76 00 51 3C` | Only command `CA` is recognized. With register 1 unseen, `CA 00 00 00` returns `00 00 00 ED` and commits on byte four. On the next poll, a different state path consumes an extra byte: `CA 00 00 00 00` returns `00 00 00 00 3C`. Deselect between polls. |
+| Address stream: `21 00 40 00` | Every pair is an independent address/status request under the same CS. With CS held low, `01 00 01 00` returns `00 ED 00 A5`. There is no command prefix; a commit returns directly to the address state. |
+
+These programs share the shifter, state decoder, program storage and four
+history bits. Their envelope is an eight-bit MSB-first SPI transport with
+fixed external pin roles. Arbitrary bit-length fields, a new electrical
+protocol and the design proposal's withheld-protocol test remain outside
+the demonstrated behavior.
+
+## P3/P4 trials
+
+Select the desired SPI profile and program its mode, status values and clear
+masks first. With the bus idle, write control `30` in SPI mode to open the
+trial interface. It works with both the M5 default and a loaded M6 byte
+program. The host uses the same byte bus, mode pin and synchronous strobe as
+the loader. One RUN executes one trial locally.
+
+| Trial pins | Role |
+| --- | --- |
+| `uo[0]`, `uo[1]` | Independent active-high DRDY_A and DRDY_B. Each stays high from its issue tick until its required service count is satisfied or the trial ends. |
+| `uio[4]`, `uio[1]` | Active-low CS_A and CS_B. The latter borrows UART RX, which is held idle internally during trial mode. |
+| `uio[5]`, `uio[6]`, `uio[7]` | Shared SCLK, MOSI and MISO, respectively. The controller drives exactly one CS low at a time and deasserts both between frames. MISO releases when both are high. |
+| `uo[2]`, `uo[3]` | RUNNING and RESULT_VALID. IRQ and RUNNING clear on a terminal decision. |
+| `ui[3:0]`, `uo[7:4]` | Readback page address and four-bit page value. Reading requires no strobe. |
+
+**Plan and rules.** While stopped, select a field with a control write, then
+write its value once with the mode pin low. A new control write cancels an
+incomplete field selection. Use base `40` for A and `48` for B (hex).
+
+| Offset | Field |
+| --- | --- |
+| 0 | Bit 0 enables this event. Bits 2:1 encode required count minus one (1–4 reads). Bits 3 and 4 independently enable command and address comparisons. Bits 7:5 encode the expected whole-byte frame length minus two (2–9). |
+| 1, 2 | Expected first and second MOSI bytes (command and address). Contents of subsequent bytes are outside this rule. |
+| 3, 4 | Issue time, low byte then high byte. |
+| 5, 6 | Inclusive completion deadline, low byte then high byte. Offset 7 is reserved. |
+
+Control selector `50` takes one policy byte. Bits 1:0 select unordered (0),
+A's quota must be satisfied before B's first service (1), or B before A (2).
+Bit 2 enables sensor banking: logical register bit 0 selects a register within
+the sensor, and CS selects physical slots 0–1 for A or 2–3 for B. With banking
+off both use the original four-slot table. Each sensor's checker always uses
+its physical CS identity and compares the unmodified MOSI bytes.
+
+**Example.** For M5's `A6 00 xx` register read, configure physical register 0
+with sensor A's data and physical register 2 with B's data. Enter trial mode.
+Write the following bytes to successive field selectors (one selector/data
+pair per field), then issue RUN:
+
+| Selectors | Data bytes (hex) | Meaning |
+| --- | --- | --- |
+| `40`–`46` | `39 A6 00 00 00 2C 01` | Notify A at tick 0; one three-byte read due by tick 300. |
+| `48`–`4E` | `39 A6 00 50 00 58 02` | Notify B at tick 80, potentially during A's read; B due by tick 600. |
+| `50` | `05` | Bank by sensor; service A before B. |
+
+**Trial time.** With both CS lines high and settled for at least 100 ns,
+control `32` starts (or replays) the plan. Tick 0 is the first system rising
+edge after RUN. Times are absolute 16-bit clock counts from that origin; use
+deadline = issue + allowed service interval, up to 65534. The frame starts
+and completes at the SPI shifter's synchronized CS assertion and release.
+These are sampled observations, typically two to three clocks after the
+external transitions. A selection observed on the issue tick is eligible.
+A completion observed on the deadline counts; an unmet quota at deadline + 1
+times out. Both events may issue together. After all quotas are satisfied,
+checking continues through the last enabled deadline to catch extra reads.
+The observation window is defined by completed frames.
+
+**Results.** The first terminal decision latches the record until RUN or reset.
+Read page 0 for the verdict. Page 1 is a source mask (A=1, B=2, both=3,
+neither=0). Pages 2–5 give the decision tick, least-significant nibble first.
+Pages 6–7 and 8–9 give the captured command and address if an open implicated
+frame supplied them (zero otherwise). Pages A and B give accepted counts for
+the two sensors. This compact witness is not a full trace buffer.
+
+| Code | Verdict and condition |
+| ---: | --- |
+| 1 | PASS at the end of the observation window. |
+| 2 | MISSED/TIMEOUT; source mask identifies all unsatisfied, expired slots on that tick. |
+| 3 | DUPLICATE; the selected source already met its quota. |
+| 4 | WRONG_CONTENT; wrong complete-byte length, command or address. |
+| 5 | ORDER_ERROR; disabled/unissued source, or predecessor's quota not satisfied. |
+| 6 | UNKNOWN; invalid plan, abort, a sensed CS collision or owner change without deselect, or an incomplete capture (partial byte or fewer than two whole bytes). |
+
+Invalid/ambiguous capture takes priority over expiry, then expiry over frame
+checks. For a well-captured frame the priority is eligibility at selection,
+multiplicity, content, then predecessor order. A timeout is recorded even if
+the controller completes late. Noise or transitions too short for the input
+synchronizers cannot be diagnosed reliably.
+
+Control `33` aborts a running trial as UNKNOWN. Configuration writes and
+additional RUN requests are ignored during execution. Control `31` while
+stopped returns to the same SPI profile with its history intact. Deselect
+both sensors before leaving trial mode or resetting. A plan needs at least one
+enabled slot, a deadline at or after issue for each enabled slot, and both
+slots enabled for an ordered trial. Order code 3 and deadline 65535 are
+invalid for an active plan. RUN resets trial counts and the previous witness;
+use the SPI rearm command separately if the peripheral history must also reset.
