@@ -2,7 +2,7 @@
 
 Protocol Chameleon is FoRG's prototype for a reprogrammable protocol emulator on the Tiny Tapeout IHP 130 nm platform. The research question is how much protocol behavior a chip can learn after fabrication while still responding on the device's clock. Protocol execution, transaction history, and checking logic must share an **8×4-tile budget** (roughly 1 mm² nominal).
 
-**Milestone 8 implements autonomous feedback.** One host command starts up to four trials. After each verdict the chip matches a loaded rule against the result, source and two previous verdicts. A rule can stop or choose new notification times and sensor status flags. Each trial leaves a readable record of the settings used and the action taken. The dual-sensor example tightens the notification gap after PASS, changes B's status after a missed B and reverses notification order after a duplicate A. [Programming example](docs/info.md#p5-feedback-campaigns) · [Verification results](test/README.md)
+**Milestone 9 gives protocol execution and checking a shared transaction boundary.** A loaded SPI byte program marks which byte closes each transaction and which bytes carry its identity, command, address and data. In the STREAM example the controller holds one chip select low while reading A twice and B once. The checker credits all three services. Changing only its expected B reply makes the same wire traffic fail. The existing feedback policy can act on that verdict in the next trial. [Programming example](docs/info.md#logical-transaction-fields) · [Verification results](test/README.md)
 
 ## The experiment
 
@@ -43,4 +43,5 @@ For Part B, the proposal calls for checking at least 100 deterministic valid tra
 - [Tiny Tapeout top level](src/project.v) and [project manifest](info.yaml) define the external interface, pin multiplexing, source list, and tile allocation.
 - [UART transmitter](src/uart_tx.v), [receiver](src/uart_rx.v), and [runtime configuration](src/serial_config.v) implement the UART path.
 - [Protocol engine](src/protocol_engine.v) contains the instruction store, pin controls, edge sampling, and branch logic.
+- [Transaction observer](src/transaction_observer.v) captures marked fields from MOSI and MISO and closes records on the byte program's end mark.
 - [Trial checker](src/trial_checker.v) schedules notifications and classifies SPI service. The [feedback policy](src/feedback_policy.v) records each result and selects the next trial.

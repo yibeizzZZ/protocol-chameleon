@@ -6,7 +6,7 @@ set -euo pipefail
 export LIBERTY ESTIMATE_DIR
 mkdir -p "$ESTIMATE_DIR"
 yosys -Q -l "$ESTIMATE_DIR/yosys.log" -p "
-  read_verilog src/project.v src/serial_config.v src/protocol_engine.v src/spi_target.v src/trial_checker.v src/feedback_policy.v src/uart_tx.v src/uart_rx.v
+  read_verilog src/project.v src/serial_config.v src/protocol_engine.v src/spi_target.v src/trial_checker.v src/transaction_observer.v src/feedback_policy.v src/uart_tx.v src/uart_rx.v
   hierarchy -check -top tt_um_example
   synth -flatten -noabc -top tt_um_example
   check -assert

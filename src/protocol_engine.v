@@ -11,6 +11,8 @@ module protocol_engine (
     input  wire [3:0] pins_in,
     input  wire [2:0] byte_state,
     output wire [15:0] byte_rule,
+    output wire [5:0] byte_annotation,
+    output reg        annotated,
     output wire       start_byte_program,
     output reg        selected,
     output reg        running,
@@ -27,13 +29,18 @@ module protocol_engine (
   // byte; the serial shifter needs the entire state rule at a byte boundary.
   reg [7:0] even_code [0:7];
   reg [7:0] odd_code [0:7];
+  reg [5:0] annotations [0:7];
+  reg annotation_pending;
+  reg [2:0] annotation_index;
   reg [4:0] length, pc;
   reg [3:0] delay_left;
   wire [2:0] fetch_addr = selected ? pc[3:1] : byte_state;
   wire [7:0] even_byte = even_code[fetch_addr];
   wire [7:0] odd_byte = odd_code[fetch_addr];
   wire [7:0] instruction = pc[0] ? odd_byte : even_byte;
-  assign byte_rule = {1'b0, byte_state} < length[4:1] ? {even_byte, odd_byte} : 16'd0;
+  wire state_loaded = {1'b0, byte_state} < length[4:1];
+  assign byte_rule = state_loaded ? {even_byte, odd_byte} : 16'd0;
+  assign byte_annotation = state_loaded ? annotations[byte_state] : 6'd0;
   wire [3:0] opcode = instruction[7:4];
   wire [3:0] operand = instruction[3:0];
 
@@ -57,13 +64,30 @@ module protocol_engine (
   wire command_write = selected && strobe && control;
   assign start_byte_program = command_write && host_byte == 8'h04 &&
                               !running && length != 0 && !length[0];
-  wire append = selected && strobe && !control && !running && length < 5'd16;
+  wire data_write = selected && strobe && !control && !running;
+  wire append = data_write && !annotation_pending && length < 5'd16;
+  wire annotate = data_write && annotation_pending && {1'b0, annotation_index} < length[4:1];
+
+  always @(posedge clk) begin
+    if (!rst_n || enter || (command_write && !running && host_byte == CLEAR)) begin
+      annotation_pending <= 0;
+      annotated <= 0;
+    end else if (selected && !running && strobe) begin
+      annotation_pending <= control && host_byte[7:3] == 5'b00010; // 10..17
+      if (control) annotation_index <= host_byte[2:0];
+      if (annotate) annotated <= 1;
+    end
+  end
 
   always @(posedge clk) begin
     if (rst_n && append) begin
       if (length[0]) odd_code[length[3:1]] <= host_byte;
-      else even_code[length[3:1]] <= host_byte;
+      else begin
+        even_code[length[3:1]] <= host_byte;
+        annotations[length[3:1]] <= 0;
+      end
     end
+    if (rst_n && annotate) annotations[annotation_index] <= host_byte[5:0];
   end
 
   always @(posedge clk) begin

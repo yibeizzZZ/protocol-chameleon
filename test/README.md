@@ -1,6 +1,6 @@
-# Milestones 1–8 verification
+# Milestones 1–9 verification
 
-The Tiny Tapeout RTL regression passed **30 tests, 0 failed, 0 skipped**. All 24 previous cases and six new feedback cases ran through the same top-level harness. All oracles use external inputs, outputs, enables, or resolved pads.
+The Tiny Tapeout RTL regression passed **39 tests, 0 failed, 0 skipped**. All 30 previous tests and nine transaction-semantics tests ran through the top-level harness using external inputs, outputs, enables or resolved pads.
 
 ## Reproduce the functional tests
 
@@ -25,6 +25,23 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [SPI byte programs](test_byte_program.py) | 3 | Runtime transaction-format replacement, timing across all modes, incomplete images and stale targets. |
 | [Trial planning and checking](test_trials.py) | 5 | Dual-source notification and deadlines, 112 deterministic traces, rule changes on the same traffic, invalid frames and active-checker SPI timing. |
 | [Feedback campaigns](test_feedback.py) | 6 | Four-trial autonomous execution, two-verdict history, policy-only replay, stopping and retention, deadlines inside a selected frame, and SPI timing with a feedback-selected status mode. |
+| [Logical transactions](test_transactions.py) | 9 | STREAM mismatch and compatibility, contract-only replay, boundary-only replay, input-dependent lengths and truncated tails, exact deadlines and start eligibility, read-history scope, missing fields, autonomous feedback and SPI timing. |
+
+## Logical transaction results
+
+On M8, three valid STREAM replies in one CS window produced only one service
+under a six-byte contract (then TIMEOUT), or zero under a two-byte contract
+(WRONG_CONTENT). Both results remain reproducible with an unannotated image.
+On M9 the annotated image credits two A services and one B on that same CS.
+Changing only the expected B response, tag, quota ordering, command, address
+or length changes the verdict while all wire bytes remain identical.
+
+Moving only the end marks in another six-state image recognizes either three
+pairs or two triples in identical traffic. A conditional program also mixes
+two- and three-byte records within one selection. In a two-trial autonomous
+campaign, a logical PASS selected a status change, and the unchanged checker
+then reported WRONG_CONTENT on the first read and captured the changed MISO byte.
+To run just these cases, use `make COCOTB_TEST_MODULES=test_transactions` in `test/`.
 
 ## Feedback results
 
@@ -44,6 +61,13 @@ TIMEOUT and the attempted restart on the still-selected CS recorded UNKNOWN.
 The original frame delivered its selected status through the last bit.
 
 ## SPI measurements
+
+With annotated STREAM and both reply comparisons enabled, the 5 MHz SPI
+master swept 22 phases per mode against a 50 MHz system clock. All four modes
+each produced 528 measured payload transitions. Launch to valid and CS to
+first drive both took 40.1–60.0 ns (2.005–3 system periods). Minimum setup
+was 40.0 ns. The oracle checked a 20 ns setup and 10 ns hold window at each
+sample. These are zero-delay RTL measurements.
 
 With P5 active, a timeout in trial one selected a different status mode for
 sensor B in trial two. The test read A and B at 5 MHz through the loaded M6
@@ -91,7 +115,7 @@ Launch-to-valid spans 2.005–3.000 system periods depending on phase. The targe
 
 ## Synthesis and basic timing
 
-The commands below reproduce the M8 Yosys/ABC mapping and standalone prelayout OpenSTA estimate from the repository root using the same tool image and typical cell library as M7.
+The commands below reproduce the M9 Yosys/ABC mapping and standalone prelayout OpenSTA estimate from the repository root using the same tool image and typical cell library as M8.
 
 ```sh
 out=$(mktemp -d)
@@ -107,14 +131,18 @@ docker run --rm --entrypoint bash -v "$PWD:/work:ro" -v "$out:/out" -w /work \
 
 The [synthesis script](synth_estimate.sh) writes the mapped netlist and `yosys.log` in the output directory. Yosys 0.66 completed the structural check and mapped the flattened top to the IHP SG13 CMOS5L typical library (1.20 V, 25 °C). M4 and M5 also have historical [prelayout STA](prelayout_sta.tcl) results at an ideal 20 ns clock; STA was not run for M6.
 
-| Quantity | M4 baseline | M5 | M6 | M7 | M8 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Mapped standard cells (excluding Yosys metadata) | 1,209 | 1,761 | 1,948 | 3,244 | 4,837 |
-| Flip-flops | 286 | 390 | 388 | 601 | 982 |
-| Sum of library cell areas | 24,464.727 µm² | 33,109.322 µm² | 34,346.857 µm² | 54,630.072 µm² | 86,161.055 µm² |
-| Sequential cell area | 14,010.797 µm² | 19,105.632 µm² | 19,007.654 µm² | 29,442.269 µm² | 48,107.002 µm² |
-| Worst reported register-to-register setup slack | +16.978 ns | +17.144 ns | — | +15.232 ns | +15.237 ns |
-| Register to bit-7 data / enable block-port arrival | — | 0.807 ns / 0.761 ns | — | 0.769 ns / 0.810 ns | 0.760 ns / 0.805 ns |
+| Quantity | M4 baseline | M5 | M6 | M7 | M8 | M9 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mapped standard cells (excluding Yosys metadata) | 1,209 | 1,761 | 1,948 | 3,244 | 4,837 | 5,524 |
+| Flip-flops | 286 | 390 | 388 | 601 | 982 | 1,122 |
+| Sum of library cell areas | 24,464.727 µm² | 33,109.322 µm² | 34,346.857 µm² | 54,630.072 µm² | 86,161.055 µm² | 98,186.218 µm² |
+| Sequential cell area | 14,010.797 µm² | 19,105.632 µm² | 19,007.654 µm² | 29,442.269 µm² | 48,107.002 µm² | 54,965.434 µm² |
+| Worst reported register-to-register setup slack | +16.978 ns | +17.144 ns | — | +15.232 ns | +15.237 ns | +12.905 ns |
+| Register to bit-7 data / enable block-port arrival | — | 0.807 ns / 0.761 ns | — | 0.769 ns / 0.810 ns | 0.760 ns / 0.805 ns | 0.907 ns / 0.860 ns |
+
+Relative to M8 the mapped area increased by 12,025.163 µm² (13.96%).
+The estimates use an ideal 20 ns clock before placement, routing and pad
+delays. The separate M8 physical measurements below apply only to M8.
 
 ## External timing and remaining risks
 

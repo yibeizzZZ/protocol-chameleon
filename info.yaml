@@ -22,6 +22,7 @@ project:
     - "protocol_engine.v"
     - "spi_target.v"
     - "trial_checker.v"
+    - "transaction_observer.v"
     - "feedback_policy.v"
     - "uart_tx.v"
     - "uart_rx.v"

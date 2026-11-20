@@ -259,7 +259,8 @@ assertion is zero. The host does not intervene between bytes.
    drivers released until the loader owns the pins. It starts with an empty image.
 2. Write rule bytes in address order, one strobe per byte with `uio[3]=0`.
    While stopped, control `01` clears the image for a retry.
-3. Write control `04` to select byte execution. Empty or odd-length images,
+3. Optionally load [logical transaction fields](#logical-transaction-fields)
+   for the completed states. Write control `04` to select byte execution. Empty or odd-length images,
    and requests while a GPIO program is running, are ignored. Control `02`
    still runs the same store as GPIO instructions. The image is immutable
    during byte execution.
@@ -277,7 +278,7 @@ next outgoing byte is zero.
 
 | High nibble | Operation on the just-received byte | Next state |
 | --- | --- | --- |
-| 0 | End this logical frame; emit zeros while CS remains low | Quiet until deselect |
+| 0 | Enter the quiet state and emit zeros while CS remains low | Quiet until deselect |
 | 1 | Compare the received byte with the argument | Target on equality, otherwise following state |
 | 2 | Schedule status from the received register address (0–3); remember the address for commit | Target, or quiet on invalid address |
 | 3 | Schedule status from the register in argument bits 1:0; remember its address | Target |
@@ -330,16 +331,17 @@ incomplete field selection. Use base `40` for A and `48` for B (hex).
 | Offset | Field |
 | --- | --- |
 | 0 | Bit 0 enables this event. Bits 2:1 encode required count minus one (1–4 reads). Bits 3 and 4 independently enable command and address comparisons. Bits 7:5 encode the expected whole-byte frame length minus two (2–9). |
-| 1, 2 | Expected first and second MOSI bytes (command and address). Contents of subsequent bytes are outside this rule. |
+| 1, 2 | Expected command and address. Unannotated profiles take these from the first and second MOSI bytes. |
 | 3, 4 | Issue time, low byte then high byte. |
-| 5, 6 | Inclusive completion deadline, low byte then high byte. Offset 7 is reserved. |
+| 5, 6 | Inclusive completion deadline, low byte then high byte. |
+| 7 | Expected logical identity tag when tag matching is enabled. |
 
 Control selector `50` takes one policy byte. Bits 1:0 select unordered (0),
 A's quota must be satisfied before B's first service (1), or B before A (2).
 Bit 2 enables sensor banking: logical register bit 0 selects a register within
 the sensor, and CS selects physical slots 0–1 for A or 2–3 for B. With banking
-off both use the original four-slot table. Each sensor's checker always uses
-its physical CS identity and compares the unmodified MOSI bytes.
+off both use the original four-slot table. By default, physical CS identifies
+the source. An annotated program can also identify the source from a wire tag.
 
 **Example.** For M5's `A6 00 xx` register read, configure physical register 0
 with sensor A's data and physical register 2 with B's data. Enter trial mode.
@@ -355,7 +357,7 @@ pair per field), then issue RUN:
 **Trial time.** With both CS lines high and settled for at least 100 ns,
 control `32` starts (or replays) the plan. Tick 0 is the first system rising
 edge after RUN. Times are absolute 16-bit clock counts from that origin; use
-deadline = issue + allowed service interval, up to 65534. The frame starts
+deadline = issue + allowed service interval, up to 65534. An unannotated frame starts
 and completes at the SPI shifter's synchronized CS assertion and release.
 These are sampled observations, typically two to three clocks after the
 external transitions. A selection observed on the issue tick is eligible.
@@ -376,9 +378,9 @@ the two sensors. This compact witness is not a full trace buffer.
 | 1 | PASS at the end of the observation window. |
 | 2 | MISSED/TIMEOUT; source mask identifies all unsatisfied, expired slots on that tick. |
 | 3 | DUPLICATE; the selected source already met its quota. |
-| 4 | WRONG_CONTENT; wrong complete-byte length, command or address. |
+| 4 | WRONG_CONTENT for a length, command, address or enabled data mismatch, or an unmapped observed tag. |
 | 5 | ORDER_ERROR; disabled/unissued source, or predecessor's quota not satisfied. |
-| 6 | UNKNOWN; invalid plan, abort, a sensed CS collision or owner change without deselect, or an incomplete capture (partial byte or fewer than two whole bytes). |
+| 6 | UNKNOWN for an invalid plan, abort, sensed CS collision, owner change without deselect or incomplete capture. Unannotated profiles require at least two whole bytes. |
 
 Invalid/ambiguous capture takes priority over expiry, then expiry over frame
 checks. For a well-captured frame the priority is eligibility at selection,
@@ -394,6 +396,73 @@ enabled slot, a deadline at or after issue for each enabled slot, and both
 slots enabled for an ordered trial. Order code 3 and deadline 65535 are
 invalid for an active plan. RUN resets trial counts and the previous witness;
 use the SPI rearm command separately if the peripheral history must also reset.
+
+### Logical transaction fields
+
+In the stopped GPIO loader, write the two instruction bytes for a state,
+then optionally select that state with control `10`–`17` (state 0–7) and
+write one data byte. You can also annotate multiple states after loading the
+whole image. One control write cancels any pending selector. A data write to
+an incomplete or unloaded state is consumed and ignored. New states start
+with zero field bits. Any successful annotation, including a zero, enables
+logical checking for this image. CLEAR or loading a new image resets that
+choice. Images without annotations retain one service per physical CS frame.
+
+| Annotation bit | Meaning on the final sampled bit of this state's byte |
+| --- | --- |
+| 5 | End the current logical transaction, including this byte. |
+| 4, 3, 2 | Capture the MOSI byte as identity tag, command or address respectively. |
+| 1 | Capture a data byte. |
+| 0 | Select the sampled MISO pad for data when set, or MOSI when clear. |
+
+Bits 7:6 are ignored. A byte may fill multiple fields. The latest capture
+within the transaction wins for each field. An input-dependent state branch
+can put the closing byte at a different position for different commands.
+The end mark expires an uncommitted peripheral read after the current
+operation. A COMMIT on that byte still takes effect. SPI continues with the
+program's selected next state and reply under the same CS.
+
+P4 snapshots both slots' eligibility on the first synchronized bit sample of
+each transaction. The synchronized final sample of a marked byte is its
+inclusive completion tick. An empty CS window, partial byte or unfinished
+transaction at deselect yields UNKNOWN during observation. Releasing CS after
+a completed transaction adds no service. CS ownership, collision detection,
+physical register banking and MISO release still apply to the whole window.
+
+In the trial interface the following `50` policy bits apply to annotated
+images. Bits 2:0 keep their original meaning.
+
+| Bit | Independent checking contract |
+| --- | --- |
+| 3 | Match the captured tag against A/B selectors `47` and `4F` to identify the source. When clear, use physical CS. Tag mode requires two distinct configured tags. A missing tag gives UNKNOWN. A present, unmapped tag gives WRONG_CONTENT with source mask zero. |
+| 4, 5 | Enable data equality separately for A and B. Write expected data to selectors `52` and `53`. |
+| 6, 7 | Require length one for A or B respectively. Otherwise the descriptor selects 2–9 bytes. The observed length saturates at 10, so excess bytes cannot wrap to a valid length. |
+
+An enabled content comparison requires the field to be present, including
+when the expected value is zero. Pages A/B report accepted service counts,
+pages C/D report the captured failure data, and E/F report the captured tag,
+low nibble first. As with command and address, empty witness registers read
+zero. The P5 campaign uses the same P4 verdict, source and decision tick.
+
+**STREAM example.** Load `21 00 40 00`, annotate state 0 with `14` (tag
+and address) and state 1 with `2B` (command, MISO data and end), then issue
+`04`. Set SPI status slots 1 and 2 to `55` and `AA` with zero clear masks.
+Enter trials with `30` and load the selector/data bytes below. All values
+are hexadecimal.
+
+| Selectors | Data in selector order |
+| --- | --- |
+| `40`–`47` | `1B 36 01 00 00 58 02 01` |
+| `48`–`4F` | `19 47 02 00 00 58 02 02` |
+| `50`, `52`, `53` | `39 55 AA` |
+
+After RUN (`32`), send `01 36 01 36 02 47` under one continuous CS_A
+assertion. MISO returns `00 55 00 55 00 AA`. Each pair completes a
+transaction. A is credited twice and B once. PASS is reported at tick 601
+if service finishes by tick 600. Changing only selector `53` to `AB` makes
+the same final reply fail as WRONG_CONTENT for B. This interface checks
+whole-byte fields on the SPI datapath, with two service slots and their
+existing quotas and ordering rules.
 
 ### P5 feedback campaigns
 

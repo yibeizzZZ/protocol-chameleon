@@ -9,6 +9,9 @@ module trial_checker (
     input wire [1:0] cs_n,
     input wire frame_start, frame_end, byte_valid, partial_byte,
     input wire [7:0] observed_byte,
+    input wire logical_transactions, logical_end, byte_start,
+    input wire [4:0] fields,
+    input wire [7:0] observed_reply,
     output reg selected,
     output wire bank_enable, bank_id,
     output wire [1:0] status_mode,
@@ -28,7 +31,8 @@ module trial_checker (
   end
 
   reg [7:0] cfg [0:15]; // two eight-byte descriptors, layout in docs/info.md
-  reg [2:0] policy;
+  reg [7:0] policy;
+  reg [7:0] expected_data [0:1];
   reg [4:0] selector;
   reg write_pending, running;
   wire command = selected && strobe && control;
@@ -46,6 +50,8 @@ module trial_checker (
       write_pending <= 0;
       selector <= 0;
       policy <= 0;
+      expected_data[0] <= 0;
+      expected_data[1] <= 0;
       for (i=0; i<16; i=i+1) cfg[i] <= 0;
     end else if (!selected) begin
       selected <= spi_selected && control && strobe && host_byte == 8'h30;
@@ -53,11 +59,13 @@ module trial_checker (
     end else if (!running && !campaign_busy && strobe) begin
       if (control) begin
         selected <= host_byte != 8'h31;
-        write_pending <= host_byte[7:4] == 4'h4 || host_byte == 8'h50;
+        write_pending <= host_byte[7:4] == 4'h4 || host_byte == 8'h50 ||
+                         host_byte[7:1] == 7'h29; // 52/53: expected data
         selector <= host_byte[4:0];
       end else if (write_pending) begin
-        if (selector[4]) policy <= host_byte[2:0];
-        else cfg[selector[3:0]] <= host_byte;
+        if (!selector[4]) cfg[selector[3:0]] <= host_byte;
+        else if (selector == 5'h10) policy <= host_byte;
+        else expected_data[selector[0]] <= host_byte;
         write_pending <= 0;
       end
     end
@@ -80,24 +88,42 @@ module trial_checker (
     assign past_end[s] = !enabled[s] || elapsed > deadline;
     assign expired[s] = enabled[s] && past_end[s] && !satisfied[s];
   end endgenerate
+  wire use_tag = logical_transactions && policy[3];
   wire invalid_plan = enabled == 0 || |invalid_window || policy[1:0] == 3 ||
+                      (use_tag && cfg[7] == cfg[15]) ||
                       (policy[1:0] != 0 && enabled != 3);
 
-  reg frame_open, early;
-  reg [1:0] owner;
-  reg [3:0] bytes_seen; // saturates at ten; the longest rule permits nine
-  reg [7:0] cmd_byte, addr_byte;
-  wire src = owner[1];
+  reg frame_open;
+  reg [1:0] owner, eligible_at_start;
+  wire txn_start, txn_end, truncated;
+  wire [3:0] length, present;
+  wire [7:0] tag, cmd_byte, addr_byte, data_byte;
+  transaction_observer observer (
+    .clk(clk), .rst_n(rst_n), .running(running), .logical_transactions(logical_transactions),
+    .logical_end(logical_end),
+    .frame_start(frame_start), .frame_end(frame_end), .byte_start(byte_start),
+    .byte_valid(byte_valid), .partial_byte(partial_byte), .fields(fields),
+    .mosi_byte(observed_byte), .miso_byte(observed_reply),
+    .txn_start(txn_start), .txn_end(txn_end), .truncated(truncated),
+    .length(length), .present(present), .tag(tag), .cmd(cmd_byte), .addr(addr_byte), .data(data_byte)
+  );
+  wire [1:0] tag_match = {2{present[3]}} & {tag == cfg[15], tag == cfg[7]};
+  wire [1:0] identity = use_tag ? tag_match : owner;
+  wire src = identity[1];
   wire [7:0] flags = src ? cfg[8] : cfg[0];
-  wire bad_content = bytes_seen != ({1'b0,flags[7:5]} + 4'd2) ||
-                     (flags[3] && cmd_byte != (src ? cfg[9] : cfg[1])) ||
-                     (flags[4] && addr_byte != (src ? cfg[10] : cfg[2]));
+  wire single_byte = logical_transactions && (src ? policy[7] : policy[6]);
+  wire [3:0] expected_length = single_byte ? 4'd1 : {1'b0,flags[7:5]} + 4'd2;
+  wire check_data = logical_transactions && (src ? policy[5] : policy[4]);
+  wire bad_content = length != expected_length ||
+                     (flags[3] && (!present[2] || cmd_byte != (src ? cfg[9] : cfg[1]))) ||
+                     (flags[4] && (!present[1] || addr_byte != (src ? cfg[10] : cfg[2]))) ||
+                     (check_data && (!present[0] || data_byte != expected_data[src]));
   wire predecessor_missing = (policy[1:0] == 1 && src && !satisfied[0]) ||
                              (policy[1:0] == 2 && !src && !satisfied[1]);
 
   reg [2:0] outcome, decision;
   reg [1:0] implicated, subject;
-  reg [7:0] evidence_cmd, evidence_addr;
+  reg [7:0] evidence_cmd, evidence_addr, evidence_data, evidence_tag;
   feedback_policy feedback (
     .clk(clk), .rst_n(rst_n), .selected(selected), .trial_running(running),
     .strobe(strobe), .control(control), .host_byte(host_byte),
@@ -107,12 +133,13 @@ module trial_checker (
   );
   always @* begin
     decision = 0;
-    subject = owner;
+    subject = identity;
     if ((command && host_byte == 8'h33) || cs_active == 3 ||
         (frame_open && cs_active != 0 && cs_active != owner)) begin
       decision = UNKNOWN;
       subject = (frame_open ? owner : 2'b00) | cs_active;
-    end else if (frame_end && (!frame_open || partial_byte || bytes_seen < 2)) begin
+    end else if ((frame_end && (!frame_open || truncated)) ||
+                 (txn_end && use_tag && !present[3])) begin
       decision = UNKNOWN;
     end else if (|expired) begin
       decision = TIMEOUT;
@@ -120,8 +147,9 @@ module trial_checker (
     end else if (&past_end) begin
       decision = PASS;
       subject = 0;
-    end else if (frame_end) begin
-      if (!enabled[src] || early) decision = ORDER_ERROR;
+    end else if (txn_end) begin
+      if (use_tag && identity == 0) decision = WRONG_CONTENT;
+      else if (!enabled[src] || !eligible_at_start[src]) decision = ORDER_ERROR;
       else if (satisfied[src]) decision = DUPLICATE;
       else if (bad_content) decision = WRONG_CONTENT;
       else if (predecessor_missing) decision = ORDER_ERROR;
@@ -139,41 +167,32 @@ module trial_checker (
       serviced[0] <= 0;
       serviced[1] <= 0;
       frame_open <= 0;
-      early <= 0;
+      eligible_at_start <= 0;
       owner <= 0;
-      bytes_seen <= 0;
-      cmd_byte <= 0;
-      addr_byte <= 0;
       evidence_cmd <= 0;
       evidence_addr <= 0;
+      evidence_data <= 0;
+      evidence_tag <= 0;
     end else if (running) begin
       elapsed <= elapsed + 1'b1;
       issued <= issued | due;
+      if (txn_start) eligible_at_start <= issued | due;
       if (frame_start) begin
         owner <= cs_active;
-        early <= (((issued | due) & cs_active) == 0);
         frame_open <= 1;
-        bytes_seen <= 0;
-        cmd_byte <= 0;
-        addr_byte <= 0;
       end
-      if (byte_valid) begin
-        if (bytes_seen == 0) cmd_byte <= observed_byte;
-        if (bytes_seen == 1) addr_byte <= observed_byte;
-        if (bytes_seen < 10) bytes_seen <= bytes_seen + 1'b1;
-      end
-      if (frame_end) begin
-        frame_open <= 0;
-        if (decision == 0) serviced[src] <= serviced[src] + 1'b1;
-      end
+      if (frame_end) frame_open <= 0;
+      if (txn_end && decision == 0) serviced[src] <= serviced[src] + 1'b1;
       if (decision != 0) begin
         running <= 0;
         outcome <= decision;
         implicated <= subject;
         stamp <= elapsed;
-        if (frame_open && |(owner & subject)) begin
+        if (frame_open && (|(identity & subject) || (txn_end && decision == WRONG_CONTENT))) begin
           evidence_cmd <= cmd_byte;
           evidence_addr <= addr_byte;
+          evidence_data <= data_byte;
+          evidence_tag <= tag;
         end
       end
     end
@@ -194,7 +213,10 @@ module trial_checker (
       9: page = evidence_addr[7:4];
       10: page = {1'b0,serviced[0]};
       11: page = {1'b0,serviced[1]};
-      default: page = 0;
+      12: page = evidence_data[3:0];
+      13: page = evidence_data[7:4];
+      14: page = evidence_tag[3:0];
+      15: page = evidence_tag[7:4];
     endcase
   end
   wire feedback_read = host_byte[7:6] == 2'b10 || host_byte == 8'hc0;

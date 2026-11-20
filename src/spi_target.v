@@ -7,14 +7,20 @@ module spi_target (
     input  wire       clk, rst_n, enter,
     input  wire       start_byte_program,
     input  wire [15:0] byte_rule,
+    input  wire       annotated,
+    input  wire [5:0] byte_annotation,
     output wire [2:0] byte_state,
     input  wire       strobe, control,
     input  wire [7:0] host_byte,
     input  wire       cs_n, sclk, mosi,
+    input  wire       miso_pad,
     input  wire       bank_enable, bank_id,
     input  wire [1:0] status_mode,
     output wire       frame_start, frame_end, byte_valid, partial_byte,
     output wire [7:0] observed_byte,
+    output wire       logical_transactions, logical_end, byte_start,
+    output wire [4:0] fields,
+    output wire [7:0] observed_reply,
     output reg        selected,
     output reg        miso,
     output wire       miso_oe
@@ -48,6 +54,9 @@ module spi_target (
   reg [3:0] state;  // addresses 0..7, 8 means quiet until deselect
   reg [6:0] rx_shift;
   reg [7:0] tx_shift;
+  // Observe the MISO input pad with the same sampling latency as MOSI.
+  (* async_reg = "true" *) reg miso_meta, miso_sync;
+  reg [6:0] reply_samples;
 
   wire clock_edge = sclk_sync != sclk_prev;
   // CPHA=0 samples the leading edge; CPHA=1 samples the trailing edge.
@@ -84,6 +93,16 @@ module spi_target (
   assign byte_valid = complete_byte;
   assign partial_byte = bit_index != 0;
   assign observed_byte = byte_in;
+  assign byte_start = active && !cs_sync && sample_edge && bit_index == 0;
+  assign logical_transactions = loaded_profile && annotated;
+  assign fields = state[3] ? 5'b0 : byte_annotation[4:0];
+  assign logical_end = complete_byte && logical_transactions && !state[3] && byte_annotation[5];
+  assign observed_reply = {reply_samples, miso_sync};
+  always @(posedge clk) begin
+    miso_meta <= miso_pad;
+    miso_sync <= miso_meta;
+    if (active && !cs_sync && sample_edge) reply_samples <= observed_reply[6:0];
+  end
   wire complete_read = complete_byte && op == COMMIT && addr_pending;
   // Raw deselect releases the pad without waiting for the system clock.
   assign miso_oe = active && !cs_n;
@@ -168,6 +187,9 @@ module spi_target (
             addr_pending <= 0;
           end
         endcase
+        // COMMIT on this byte can still update seen. An uncommitted handle
+        // belongs to this logical transaction and cannot leak into the next.
+        if (logical_end) addr_pending <= 0;
       end
     end else if (active && clock_edge && !sample_edge) begin
       // The next bit is already selected before its launch edge arrives.

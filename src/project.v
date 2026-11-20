@@ -34,6 +34,10 @@ module tt_um_example (
   wire start_byte_program;
   wire [2:0] byte_state;
   wire [15:0] byte_rule;
+  wire annotated, logical_transactions, logical_end, byte_start;
+  wire [5:0] byte_annotation;
+  wire [4:0] fields;
+  wire [7:0] observed_reply;
   wire trial_selected, bank_enable, bank_id;
   wire [1:0] status_mode;
   wire frame_start, frame_end, byte_valid, partial_byte;
@@ -49,6 +53,9 @@ module tt_um_example (
   spi_target peripheral (
     .clk(clk), .rst_n(rst_n), .enter(enter_spi), .selected(spi_selected),
     .start_byte_program(start_byte_program), .byte_state(byte_state), .byte_rule(byte_rule),
+    .annotated(annotated), .byte_annotation(byte_annotation), .miso_pad(uio_in[7]),
+    .logical_transactions(logical_transactions), .logical_end(logical_end), .byte_start(byte_start),
+    .fields(fields), .observed_reply(observed_reply),
     .strobe(strobe && !trial_selected), .control(config_mode), .host_byte(ui_in),
     .cs_n(uio_in[4] && (!trial_selected || uio_in[1])), .sclk(uio_in[5]), .mosi(uio_in[6]),
     .bank_enable(bank_enable), .bank_id(bank_id), .status_mode(status_mode),
@@ -63,6 +70,8 @@ module tt_um_example (
     .cs_n({uio_in[1], uio_in[4]}), .frame_start(frame_start), .frame_end(frame_end),
     .byte_valid(byte_valid), .partial_byte(partial_byte), .observed_byte(observed_byte),
     .selected(trial_selected), .bank_enable(bank_enable), .bank_id(bank_id),
+    .logical_transactions(logical_transactions), .logical_end(logical_end), .byte_start(byte_start),
+    .fields(fields), .observed_reply(observed_reply),
     .outputs(trial_outputs), .status_mode(status_mode)
   );
 
@@ -71,7 +80,8 @@ module tt_um_example (
     .strobe(strobe), .control(config_mode), .host_byte(ui_in),
     .pins_in(uio_in[7:4]), .selected(engine_selected), .running(engine_running),
     .start_byte_program(start_byte_program), .byte_state(byte_state), .byte_rule(byte_rule),
-    .samples(engine_samples), .pins_out(engine_out), .pins_oe(engine_oe)
+    .samples(engine_samples), .pins_out(engine_out), .pins_oe(engine_oe),
+    .annotated(annotated), .byte_annotation(byte_annotation)
   );
 
   wire tx, busy, done;
