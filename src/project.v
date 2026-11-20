@@ -35,6 +35,7 @@ module tt_um_example (
   wire [2:0] byte_state;
   wire [15:0] byte_rule;
   wire trial_selected, bank_enable, bank_id;
+  wire [1:0] status_mode;
   wire frame_start, frame_end, byte_valid, partial_byte;
   wire [7:0] observed_byte, trial_outputs;
   wire uart_host = !engine_selected && !spi_selected;
@@ -50,7 +51,7 @@ module tt_um_example (
     .start_byte_program(start_byte_program), .byte_state(byte_state), .byte_rule(byte_rule),
     .strobe(strobe && !trial_selected), .control(config_mode), .host_byte(ui_in),
     .cs_n(uio_in[4] && (!trial_selected || uio_in[1])), .sclk(uio_in[5]), .mosi(uio_in[6]),
-    .bank_enable(bank_enable), .bank_id(bank_id),
+    .bank_enable(bank_enable), .bank_id(bank_id), .status_mode(status_mode),
     .frame_start(frame_start), .frame_end(frame_end), .byte_valid(byte_valid),
     .partial_byte(partial_byte), .observed_byte(observed_byte),
     .miso(miso), .miso_oe(miso_oe)
@@ -62,7 +63,7 @@ module tt_um_example (
     .cs_n({uio_in[1], uio_in[4]}), .frame_start(frame_start), .frame_end(frame_end),
     .byte_valid(byte_valid), .partial_byte(partial_byte), .observed_byte(observed_byte),
     .selected(trial_selected), .bank_enable(bank_enable), .bank_id(bank_id),
-    .outputs(trial_outputs)
+    .outputs(trial_outputs), .status_mode(status_mode)
   );
 
   protocol_engine engine (

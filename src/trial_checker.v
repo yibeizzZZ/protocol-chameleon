@@ -11,6 +11,7 @@ module trial_checker (
     input wire [7:0] observed_byte,
     output reg selected,
     output wire bank_enable, bank_id,
+    output wire [1:0] status_mode,
     output wire [7:0] outputs
 );
   localparam [2:0] PASS=1, TIMEOUT=2, DUPLICATE=3, WRONG_CONTENT=4,
@@ -31,7 +32,10 @@ module trial_checker (
   reg [4:0] selector;
   reg write_pending, running;
   wire command = selected && strobe && control;
-  wire start = command && host_byte == 8'h32 && !running;
+  wire campaign_busy, auto_start;
+  wire [7:0] issue_a, issue_b;
+  wire [3:0] campaign_page;
+  wire start = auto_start || (command && host_byte == 8'h32 && !running && !campaign_busy);
   assign bank_enable = selected && policy[2];
   assign bank_id = cs_active[1];
 
@@ -46,7 +50,7 @@ module trial_checker (
     end else if (!selected) begin
       selected <= spi_selected && control && strobe && host_byte == 8'h30;
       write_pending <= 0;
-    end else if (!running && strobe) begin
+    end else if (!running && !campaign_busy && strobe) begin
       if (control) begin
         selected <= host_byte != 8'h31;
         write_pending <= host_byte[7:4] == 4'h4 || host_byte == 8'h50;
@@ -66,7 +70,8 @@ module trial_checker (
   genvar s;
   generate for (s=0; s<2; s=s+1) begin : slot
     wire [7:0] flags = cfg[8*s];
-    wire [15:0] issue = {cfg[8*s+4],cfg[8*s+3]};
+    wire [15:0] issue = campaign_busy ? {8'd0,(s==0 ? issue_a : issue_b)} :
+                                       {cfg[8*s+4],cfg[8*s+3]};
     wire [15:0] deadline = {cfg[8*s+6],cfg[8*s+5]};
     assign enabled[s] = flags[0];
     assign satisfied[s] = serviced[s] >= ({1'b0,flags[2:1]} + 3'd1);
@@ -93,6 +98,13 @@ module trial_checker (
   reg [2:0] outcome, decision;
   reg [1:0] implicated, subject;
   reg [7:0] evidence_cmd, evidence_addr;
+  feedback_policy feedback (
+    .clk(clk), .rst_n(rst_n), .selected(selected), .trial_running(running),
+    .strobe(strobe), .control(control), .host_byte(host_byte),
+    .verdict(outcome), .source_mask(implicated), .stamp(stamp),
+    .busy(campaign_busy), .start_trial(auto_start), .issue_a(issue_a),
+    .issue_b(issue_b), .status_mode(status_mode), .page(campaign_page)
+  );
   always @* begin
     decision = 0;
     subject = owner;
@@ -185,5 +197,7 @@ module trial_checker (
       default: page = 0;
     endcase
   end
-  assign outputs = {page, outcome != 0, running, issued & ~satisfied & {2{running}}};
+  wire feedback_read = host_byte[7:6] == 2'b10 || host_byte == 8'hc0;
+  assign outputs = {feedback_read ? campaign_page : page, !campaign_busy && outcome != 0,
+                    campaign_busy || running, issued & ~satisfied & {2{running}}};
 endmodule

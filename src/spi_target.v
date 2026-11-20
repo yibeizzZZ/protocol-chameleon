@@ -12,6 +12,7 @@ module spi_target (
     input  wire [7:0] host_byte,
     input  wire       cs_n, sclk, mosi,
     input  wire       bank_enable, bank_id,
+    input  wire [1:0] status_mode,
     output wire       frame_start, frame_end, byte_valid, partial_byte,
     output wire [7:0] observed_byte,
     output reg        selected,
@@ -74,7 +75,9 @@ module spi_target (
   wire [7:0] arg = rule[7:0];
   wire [1:0] logical_addr = (op == READ_INDEX) ? byte_in[1:0] : arg[1:0];
   wire [1:0] addr = bank_enable ? {bank_id, logical_addr[0]} : logical_addr;
-  wire [7:0] read_value = status_value[addr] & ~(seen[addr] ? clear_mask[addr] : 8'h00);
+  reg invert_status;
+  wire [7:0] read_value = (status_value[addr] & ~(seen[addr] ? clear_mask[addr] : 8'h00))
+                          ^ {invert_status, 7'd0};
   wire complete_byte = active && !cs_sync && sample_edge && bit_index == 3'd7;
   assign frame_start = selected && !active && cs_prev && !cs_sync;
   assign frame_end = selected && active && cs_sync;
@@ -127,6 +130,7 @@ module spi_target (
   always @(posedge clk) begin
     if (!rst_n || !selected || cs_sync) begin
       active <= 0;
+      invert_status <= 0;
       state <= 0;
       bit_index <= 0;
       addr_pending <= 0;
@@ -136,6 +140,7 @@ module spi_target (
       miso <= 0;
     end else if (cs_prev && !cs_sync) begin
       active <= 1;
+      invert_status <= status_mode[bank_id];
     end else if (active && sample_edge) begin
       rx_shift <= byte_in[6:0];
       bit_index <= bit_index + 1'b1;

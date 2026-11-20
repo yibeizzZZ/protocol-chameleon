@@ -2,7 +2,7 @@
 
 Protocol Chameleon is FoRG's prototype for a reprogrammable protocol emulator on the Tiny Tapeout IHP 130 nm platform. The research question is how much protocol behavior a chip can learn after fabrication while still responding on the device's clock. Protocol execution, transaction history, and checking logic must share an **8×4-tile budget** (roughly 1 mm² nominal).
 
-**Milestone 7:** The chip can run a two-sensor test locally. It issues independent notifications, observes which sensor the controller selects, checks the command, address, order, count and deadline, and records a verdict with the implicated source and time. All 24 regressions passed, including 112 deterministic trial traces. With checking active, simulated MISO setup remained at least 40 ns at 5 MHz across SPI modes 0–3. See the [programming example](docs/info.md#p3p4-trials) and [verification results](test/README.md).
+**Milestone 8 implements autonomous feedback.** One host command starts up to four trials. After each verdict the chip matches a loaded rule against the result, source and two previous verdicts. A rule can stop or choose new notification times and sensor status flags. Each trial leaves a readable record of the settings used and the action taken. The dual-sensor example tightens the notification gap after PASS, changes B's status after a missed B and reverses notification order after a duplicate A. [Programming example](docs/info.md#p5-feedback-campaigns) · [Verification results](test/README.md)
 
 ## The experiment
 
@@ -13,7 +13,7 @@ The design proposal divides that experiment into two research goals.
 - **Part A — Reprogrammable protocol emulation.** Load a description that changes framing, pin direction, timing, transaction boundaries, and legal transitions on the same chip. The proposed acceptance test includes a clocked protocol disclosed only after the hardware design is frozen.
 - **Part B — Autonomous real-time testing.** Relate traffic to earlier events, classify the result, and choose the next response or trial locally. The proposed programming model covers the protocol (P1), peripheral behavior (P2), stimuli and trial timing (P3), checking rules (P4), and feedback policy (P5).
 
-The sequencer implements a subset of P1; the SPI peripheral supplies a bounded P2 device model with per-address read history. P3/P4 now support one programmable event per sensor in a trial, with independent service deadlines. General transaction models, full trace replay, and P5 feedback across trials remain research goals. The [design proposal (Word)](FoRG%20%E2%80%94%20Causal%20Feedback%20Protocol%20Emulator%20_%20Research%20Proposal%20v0.7.docx) defines the full specification and acceptance criteria.
+The sequencer implements a subset of P1. The SPI peripheral supplies a bounded P2 device model with per-address read history. P3/P4 support one programmable event per sensor with independent service deadlines. P5 can select among four loaded parameter profiles. General transaction models, full trace replay and the concealed-variant benchmark remain research goals. [Design proposal (Word)](FoRG%20%E2%80%94%20Causal%20Feedback%20Protocol%20Emulator%20_%20Research%20Proposal%20v0.7.docx)
 
 ## What the RTL implements
 
@@ -43,3 +43,4 @@ For Part B, the proposal calls for checking at least 100 deterministic valid tra
 - [Tiny Tapeout top level](src/project.v) and [project manifest](info.yaml) define the external interface, pin multiplexing, source list, and tile allocation.
 - [UART transmitter](src/uart_tx.v), [receiver](src/uart_rx.v), and [runtime configuration](src/serial_config.v) implement the UART path.
 - [Protocol engine](src/protocol_engine.v) contains the instruction store, pin controls, edge sampling, and branch logic.
+- [Trial checker](src/trial_checker.v) schedules notifications and classifies SPI service. The [feedback policy](src/feedback_policy.v) records each result and selects the next trial.

@@ -394,3 +394,80 @@ enabled slot, a deadline at or after issue for each enabled slot, and both
 slots enabled for an ordered trial. Order code 3 and deadline 65535 are
 invalid for an active plan. RUN resets trial counts and the previous witness;
 use the SPI rearm command separately if the peripheral history must also reset.
+
+### P5 feedback campaigns
+
+Enter the P3/P4 trial interface with SPI control `30` and load the checker
+descriptors as above. In this interface control `32` still runs one manual
+trial. Control `34` starts a new campaign and replaces its previous log.
+The host can leave its pins alone until completion. During a campaign
+`uo[2]` stays high across trials, `uo[3]` goes high after the last record,
+and `uo[1:0]` continue to carry the two independent notifications.
+
+Use one control strobe with the selector followed by one data strobe per
+field. All selectors and examples below use hexadecimal. Control strobes
+cancel incomplete writes. Set unused bits to zero.
+
+| Selector | Data |
+| --- | --- |
+| `51` | Bits 3:2 select the initial profile. Bits 1:0 give the trial bound minus one (1–4 trials). |
+| `70 + 4*p + 0,1` | Profile p's absolute issue ticks for A and B respectively, each 0–255 clocks from that trial's tick zero. These replace the two manual issue times during campaigns. Deadlines, order, quotas and checks come from P4. |
+| `70 + 4*p + 2` | Bit 0 inverts returned status bit 7 for CS_A. Bit 1 does so for CS_B. This applies to status reads after read-to-clear masking, including the M6 byte program. Each frame samples its mode at synchronized CS assertion. Literal replies and the underlying status registers retain their values. |
+| `60 + 4*r + 0` | Rule r's current verdict in bits 2:0 (0 = any, 1–6 per the P4 table). Bit 5 enables the rule. Bit 6 requests an exact match between bits 4:3 and the P4 source mask. |
+| `60 + 4*r + 1` | Bits 2:0 match the immediately preceding verdict. Bits 5:3 match the verdict two trials back. In each field 0 = any, 1–6 = exact, 7 = no such trial yet. |
+| `60 + 4*r + 2` | Bits 1:0 select the next profile. Bit 2 requests STOP. Offset 3 of each profile/rule is reserved. |
+
+All fields reset to zero. Each decision uses the first matching enabled rule
+(0 before 1 before 2 before 3). No match, explicit STOP, or reaching the
+bound ends the campaign. Each completed trial counts, including UNKNOWN.
+The engine accepts the initial trial one system clock after campaign RUN.
+For a valid trial tick 0 is the following clock. After a verdict the next
+clock archives the record and selects the action, the following clock
+accepts the new trial, and the third clock is its tick 0. A CS still observed
+active at acceptance or an issue time outside its deadline gives UNKNOWN at
+tick zero. There is no unbounded wait for a stalled controller. SPI read
+history persists across trials. Control `33` during an executing trial
+feeds UNKNOWN to the policy. Campaign configuration, exit and restart are
+locked until completion. Reset discards the campaign, policies and records.
+
+**Dual-sensor example.** Use the banked, unordered checker (selector `50`,
+data `04`), three-byte `A6 00 xx` reads with quotas of one, and absolute
+deadlines 650 and 700 clocks. Load the following triples at offsets 0–2 of
+the indicated base. Write selector `51` with data `03`, then control `34`.
+
+| Base | Data at offsets 0, 1, 2 | Effect |
+| --- | --- | --- |
+| `70` | `02 50 00` | Initially issue A at tick 2 and B at 80. |
+| `74` | `04 20 00` | Tighten the notification gap. |
+| `78` | `04 20 02` | Repeat those times with B's status flag inverted. |
+| `7C` | `46 08 01` | Issue B before A and invert A's flag. |
+| `60` | `61 00 01` | PASS with empty source mask selects profile 1. |
+| `64` | `72 00 02` | TIMEOUT of B alone selects profile 2. |
+| `68` | `6B 00 03` | DUPLICATE of A alone selects profile 3. |
+
+To explore repeated missed-B outcomes, load `72 02 03` in rule 0 and move
+the three example rules down one slot. A current missed B preceded by any
+TIMEOUT now takes profile 3. A first missed B still takes profile 2. The two
+history predicates examine verdict classes; only the current event has a
+source-mask predicate.
+
+**Readback.** Present the address on `ui_in` without a strobe and read the
+nibble on `uo[7:4]`. Page `C0` returns busy in bit 3 and the number of
+archived trials in bits 2:0 (0–4). Pages `80–8F`, `90–9F`, `A0–AF` and
+`B0–BF` return records 0–3 in execution order. An unfilled row reads as
+zero. The following offsets are relative to the start of a row.
+
+| Offset | Nibble |
+| --- | --- |
+| 0, 1 | Valid bit 3 and verdict bits 2:0; then implicated source mask. |
+| 2–5 | 16-bit decision tick, least significant nibble first. |
+| 6–7, 8–9, A | Actual issue ticks for A and B (low nibble first) and the two status-inversion bits. |
+| B, C | Previous verdict and verdict two trials back. Zero indicates absent history. |
+| D | Applied profile in bits 3:2, selected destination in bits 1:0 (applied profile if unmatched). |
+| E | Bit 3 means a subsequent trial was launched, bit 2 means a rule matched, bits 1:0 identify that rule when matched. |
+| F | Bit 0 records an explicit STOP from the winning rule. A matched non-STOP action with continuation clear reached the configured bound. |
+
+Parameter snapshots survive later profile edits and manual runs. The P4
+pages at `00–0B` retain the detailed witness for the latest trial. To replay
+a campaign, retain the loaded P1–P4 settings, policy, starting SPI history
+and controller traffic alongside the compact log.
