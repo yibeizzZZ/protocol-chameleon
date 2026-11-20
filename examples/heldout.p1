@@ -1,0 +1,25 @@
+# Two-vote interlock. The two command loops remember the previous vote.
+# P0: clock, P1: commit, P2: vote, P3: grant. RUN clears the output latch.
+DIR 0b1000
+
+previous_zero:
+    RISE_SAMPLE P0 P1
+    JUMP_ONE accept_after_zero
+    JUMP previous_zero
+accept_after_zero:
+    FALL_SAMPLE P0 P2
+    JUMP_ONE previous_one
+    JUMP previous_zero
+
+previous_one:
+    RISE_SAMPLE P0 P1
+    JUMP_ONE accept_after_one
+    JUMP previous_one
+accept_after_one:
+    FALL_SAMPLE P0 P2
+    JUMP_ONE grant
+    DRIVE 0
+    JUMP previous_zero
+grant:
+    DRIVE 0b1000
+    JUMP previous_one
