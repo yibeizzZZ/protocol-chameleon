@@ -33,6 +33,9 @@ module trial_checker (
   reg [7:0] cfg [0:15]; // two eight-byte descriptors, layout in docs/info.md
   reg [7:0] policy;
   reg [7:0] expected_data [0:1];
+  reg reactive, accepted_only, target_slot, relative_deadline;
+  reg [1:0] ordinal_minus_one;
+  reg [7:0] trigger_tag, trigger_delay, service_window;
   reg [4:0] selector;
   reg write_pending, running;
   wire command = selected && strobe && control;
@@ -52,6 +55,10 @@ module trial_checker (
       policy <= 0;
       expected_data[0] <= 0;
       expected_data[1] <= 0;
+      {reactive, accepted_only, target_slot, relative_deadline, ordinal_minus_one} <= 0;
+      trigger_tag <= 0;
+      trigger_delay <= 0;
+      service_window <= 0;
       for (i=0; i<16; i=i+1) cfg[i] <= 0;
     end else if (!selected) begin
       selected <= spi_selected && control && strobe && host_byte == 8'h30;
@@ -60,12 +67,20 @@ module trial_checker (
       if (control) begin
         selected <= host_byte != 8'h31;
         write_pending <= host_byte[7:4] == 4'h4 || host_byte == 8'h50 ||
-                         host_byte[7:1] == 7'h29; // 52/53: expected data
+                         host_byte[7:1] == 7'h29 || host_byte[7:2] == 6'h15;
         selector <= host_byte[4:0];
       end else if (write_pending) begin
         if (!selector[4]) cfg[selector[3:0]] <= host_byte;
-        else if (selector == 5'h10) policy <= host_byte;
-        else expected_data[selector[0]] <= host_byte;
+        else case (selector)
+          5'h10: policy <= host_byte;
+          5'h12, 5'h13: expected_data[selector[0]] <= host_byte;
+          5'h14: {reactive, accepted_only, target_slot, relative_deadline, ordinal_minus_one}
+                     <= {host_byte[7:4], host_byte[1:0]};
+          5'h15: trigger_tag <= host_byte;
+          5'h16: trigger_delay <= host_byte;
+          5'h17: service_window <= host_byte;
+          default: ;
+        endcase
         write_pending <= 0;
       end
     end
@@ -74,6 +89,11 @@ module trial_checker (
   reg [15:0] elapsed, stamp;
   reg [1:0] issued;
   reg [2:0] serviced [0:1];
+  reg trigger_fired, trigger_issued;
+  reg [2:0] occurrences;
+  reg [7:0] remaining;
+  wire reactive_due;
+  wire relative_overdue = relative_deadline && trigger_issued && remaining == 0;
   wire [1:0] enabled, satisfied, expired, due, invalid_window, past_end;
   genvar s;
   generate for (s=0; s<2; s=s+1) begin : slot
@@ -81,15 +101,19 @@ module trial_checker (
     wire [15:0] issue = campaign_busy ? {8'd0,(s==0 ? issue_a : issue_b)} :
                                        {cfg[8*s+4],cfg[8*s+3]};
     wire [15:0] deadline = {cfg[8*s+6],cfg[8*s+5]};
+    wire waits_for_record = reactive && target_slot == s;
     assign enabled[s] = flags[0];
     assign satisfied[s] = serviced[s] >= ({1'b0,flags[2:1]} + 3'd1);
-    assign invalid_window[s] = enabled[s] && (deadline < issue || deadline == 16'hffff);
-    assign due[s] = enabled[s] && elapsed == issue;
+    assign invalid_window[s] = enabled[s] && ((!waits_for_record && deadline < issue) ||
+                                              deadline == 16'hffff);
+    assign due[s] = enabled[s] && (waits_for_record ? reactive_due : elapsed == issue);
     assign past_end[s] = !enabled[s] || elapsed > deadline;
-    assign expired[s] = enabled[s] && past_end[s] && !satisfied[s];
+    assign expired[s] = enabled[s] && !satisfied[s] &&
+                        (past_end[s] || (waits_for_record && relative_overdue));
   end endgenerate
   wire use_tag = logical_transactions && policy[3];
   wire invalid_plan = enabled == 0 || |invalid_window || policy[1:0] == 3 ||
+                      (reactive && (!logical_transactions || !enabled[target_slot])) ||
                       (use_tag && cfg[7] == cfg[15]) ||
                       (policy[1:0] != 0 && enabled != 3);
 
@@ -122,6 +146,31 @@ module trial_checker (
                              (policy[1:0] == 2 && !src && !satisfied[1]);
 
   reg [2:0] outcome, decision;
+  // A raw record may match even on a failing check. The witness records that
+  // fact, while a terminal decision always wins over issuing a notification.
+  wire match_record = reactive && !trigger_fired && txn_end && frame_open &&
+                      cs_active == owner && (owner == 1 || owner == 2) &&
+                      present[3] && tag == trigger_tag && (!accepted_only || decision == 0);
+  wire fire_now = match_record && occurrences[1:0] == ordinal_minus_one;
+  wire [7:0] delay_ticks = campaign_busy ? (target_slot ? issue_b : issue_a) : trigger_delay;
+  assign reactive_due = !trigger_issued && decision == 0 &&
+                        ((fire_now && delay_ticks == 0) || (trigger_fired && remaining == 0));
+  always @(posedge clk) begin
+    if (!rst_n || start) begin
+      trigger_fired <= 0;
+      trigger_issued <= 0;
+      occurrences <= 0;
+      remaining <= 0;
+    end else if (running && reactive) begin
+      if (match_record) occurrences <= occurrences + 1'b1;
+      if (fire_now) trigger_fired <= 1;
+      if (reactive_due) begin
+        trigger_issued <= 1;
+        remaining <= service_window;
+      end else if (fire_now && delay_ticks != 0) remaining <= delay_ticks - 1'b1;
+      else if (remaining != 0) remaining <= remaining - 1'b1;
+    end
+  end
   reg [1:0] implicated, subject;
   reg [7:0] evidence_cmd, evidence_addr, evidence_data, evidence_tag;
   feedback_policy feedback (
@@ -220,6 +269,9 @@ module trial_checker (
     endcase
   end
   wire feedback_read = host_byte[7:6] == 2'b10 || host_byte == 8'hc0;
-  assign outputs = {feedback_read ? campaign_page : page, !campaign_busy && outcome != 0,
+  wire [3:0] readback = feedback_read ? campaign_page :
+                        host_byte == 8'hd0 ? {2'b0,trigger_issued,trigger_fired} :
+                        host_byte == 8'hd1 ? {1'b0,occurrences} : page;
+  assign outputs = {readback, !campaign_busy && outcome != 0,
                     campaign_busy || running, issued & ~satisfied & {2{running}}};
 endmodule

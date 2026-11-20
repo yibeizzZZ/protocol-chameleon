@@ -1,10 +1,10 @@
-# Milestones 1–9 verification
+# Milestones 1–10 verification
 
-The Tiny Tapeout RTL regression passed **39 tests, 0 failed, 0 skipped**. All 30 previous tests and nine transaction-semantics tests ran through the top-level harness using external inputs, outputs, enables or resolved pads.
+The Tiny Tapeout RTL regression passed **45 tests, 0 failed, 0 skipped**. The 39 previous tests and six reactive-planning tests ran through the same top-level harness using external inputs, outputs, enables or resolved pads.
 
 ## Reproduce the functional tests
 
-The run used an Ubuntu 24.04 container, Python 3.11, Icarus Verilog 12.0 (`12.0-2build2`), GNU Make 4.3 and Cocotb 2.0.1. From the repository root on Linux with Python 3.11 and its venv support installed, use the same Makefile, simulator and result check as the [repository's Tiny Tapeout workflow](../.github/workflows/test.yaml).
+The M10 run used Ubuntu 26.04 under WSL, Python 3.11, Icarus Verilog 12.0, GNU Make 4.4.1 and Cocotb 2.0.1. From the repository root on Linux with Python 3.11 and its venv support installed, use the same Makefile, simulator and result check as the [repository's Tiny Tapeout workflow](../.github/workflows/test.yaml).
 
 ```sh
 sudo apt-get install -y make iverilog
@@ -26,6 +26,34 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [Trial planning and checking](test_trials.py) | 5 | Dual-source notification and deadlines, 112 deterministic traces, rule changes on the same traffic, invalid frames and active-checker SPI timing. |
 | [Feedback campaigns](test_feedback.py) | 6 | Four-trial autonomous execution, two-verdict history, policy-only replay, stopping and retention, deadlines inside a selected frame, and SPI timing with a feedback-selected status mode. |
 | [Logical transactions](test_transactions.py) | 9 | STREAM mismatch and compatibility, contract-only replay, boundary-only replay, input-dependent lengths and truncated tails, exact deadlines and start eligibility, read-history scope, missing fields, autonomous feedback and SPI timing. |
+| [Transaction-triggered P3](test_reactive.py) | 6 | Rule-only and input-time replays, reverse target, omission, rejection and cancellation, hard and relative deadlines, four matches, partial records, feedback and SPI timing. |
+
+## Transaction-triggered scheduling and latency
+
+With the master asserting CS at trial tick 5, B rose at tick 175 for the
+first accepted A and at 335 for the second. Only the occurrence selector
+changed. Moving CS to tick 35 moved the first-trigger notification to 205.
+A and B were both outstanding at the first-trigger notification. Omitting
+the reads produced no B notification and timed out at tick 601. The suite
+also reverses source and target, checks inclusive relative deadlines, and
+observes queued notifications being suppressed after a terminal decision.
+Run these cases alone with `make COCOTB_TEST_MODULES=test_reactive` in `test/`.
+
+At 50 MHz system clock and 5 MHz SPI, each of the four modes ran at 22 phase
+offsets. The campaign had four enabled P5 rules, selected rule 3 after a
+timeout, used different first/repeat A responses, and triggered B while CS
+remained low. The independent master checked every returned bit and its
+20 ns setup / 10 ns hold window.
+
+| RTL latency | Measurement points | Observed range |
+| --- | --- | --- |
+| L1 | External launch edge to changing MISO pad, 484 transitions per mode | 40.1–60.0 ns (2.005–3 system periods), minimum setup 40.0 ns. CS assertion to first drive also took 40.1–60.0 ns. |
+| L2 | Final external command sample edge to stable WRONG_CONTENT and RESULT_VALID on the pins | 40.1–60.0 ns in every mode. With synchronized evidence ready, P4 registers the verdict on the closing tick. An unmet inclusive deadline at 600 produced TIMEOUT at 601. |
+| L3 | P4 verdict to action record, checker restart and next trial tick zero | 1, 2 and 3 clocks respectively (20, 40 and 60 ns). In the tested campaign the new trial issued A at tick zero. |
+
+These maxima cover the tested phases and histories in zero-delay RTL. The
+deliberate P3 delay of 0–255 clocks starts at the synchronized transaction
+end and is additional to the pin observation latency.
 
 ## Logical transaction results
 
@@ -115,7 +143,7 @@ Launch-to-valid spans 2.005–3.000 system periods depending on phase. The targe
 
 ## Synthesis and basic timing
 
-The commands below reproduce the M9 Yosys/ABC mapping and standalone prelayout OpenSTA estimate from the repository root using the same tool image and typical cell library as M8.
+The commands below reproduce the M10 Yosys/ABC mapping and standalone prelayout OpenSTA estimate from the repository root using the same tool image and typical cell library as M9.
 
 ```sh
 out=$(mktemp -d)
@@ -131,16 +159,16 @@ docker run --rm --entrypoint bash -v "$PWD:/work:ro" -v "$out:/out" -w /work \
 
 The [synthesis script](synth_estimate.sh) writes the mapped netlist and `yosys.log` in the output directory. Yosys 0.66 completed the structural check and mapped the flattened top to the IHP SG13 CMOS5L typical library (1.20 V, 25 °C). M4 and M5 also have historical [prelayout STA](prelayout_sta.tcl) results at an ideal 20 ns clock; STA was not run for M6.
 
-| Quantity | M4 baseline | M5 | M6 | M7 | M8 | M9 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Mapped standard cells (excluding Yosys metadata) | 1,209 | 1,761 | 1,948 | 3,244 | 4,837 | 5,524 |
-| Flip-flops | 286 | 390 | 388 | 601 | 982 | 1,122 |
-| Sum of library cell areas | 24,464.727 µm² | 33,109.322 µm² | 34,346.857 µm² | 54,630.072 µm² | 86,161.055 µm² | 98,186.218 µm² |
-| Sequential cell area | 14,010.797 µm² | 19,105.632 µm² | 19,007.654 µm² | 29,442.269 µm² | 48,107.002 µm² | 54,965.434 µm² |
-| Worst reported register-to-register setup slack | +16.978 ns | +17.144 ns | — | +15.232 ns | +15.237 ns | +12.905 ns |
-| Register to bit-7 data / enable block-port arrival | — | 0.807 ns / 0.761 ns | — | 0.769 ns / 0.810 ns | 0.760 ns / 0.805 ns | 0.907 ns / 0.860 ns |
+| Quantity | M4 baseline | M5 | M6 | M7 | M8 | M9 | M10 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Mapped standard cells (excluding Yosys metadata) | 1,209 | 1,761 | 1,948 | 3,244 | 4,837 | 5,524 | 5,774 |
+| Flip-flops | 286 | 390 | 388 | 601 | 982 | 1,122 | 1,165 |
+| Sum of library cell areas | 24,464.727 µm² | 33,109.322 µm² | 34,346.857 µm² | 54,630.072 µm² | 86,161.055 µm² | 98,186.218 µm² | 102,546.070 µm² |
+| Sequential cell area | 14,010.797 µm² | 19,105.632 µm² | 19,007.654 µm² | 29,442.269 µm² | 48,107.002 µm² | 54,965.434 µm² | 57,071.952 µm² |
+| Worst reported register-to-register setup slack | +16.978 ns | +17.144 ns | — | +15.232 ns | +15.237 ns | +12.905 ns | +12.677 ns |
+| Register to bit-7 data / enable block-port arrival | — | 0.807 ns / 0.761 ns | — | 0.769 ns / 0.810 ns | 0.760 ns / 0.805 ns | 0.907 ns / 0.860 ns | 0.787 ns / 0.894 ns |
 
-Relative to M8 the mapped area increased by 12,025.163 µm² (13.96%).
+Relative to M9 the mapped area increased by 4,359.852 µm² (4.44%).
 The estimates use an ideal 20 ns clock before placement, routing and pad
 delays. The separate M8 physical measurements below apply only to M8.
 

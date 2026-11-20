@@ -2,7 +2,7 @@
 
 Protocol Chameleon is FoRG's prototype for a reprogrammable protocol emulator on the Tiny Tapeout IHP 130 nm platform. The research question is how much protocol behavior a chip can learn after fabrication while still responding on the device's clock. Protocol execution, transaction history, and checking logic must share an **8×4-tile budget** (roughly 1 mm² nominal).
 
-**Milestone 9 gives protocol execution and checking a shared transaction boundary.** A loaded SPI byte program marks which byte closes each transaction and which bytes carry its identity, command, address and data. In the STREAM example the controller holds one chip select low while reading A twice and B once. The checker credits all three services. Changing only its expected B reply makes the same wire traffic fail. The existing feedback policy can act on that verdict in the next trial. [Programming example](docs/info.md#logical-transaction-fields) · [Verification results](test/README.md)
+**Milestone 10 lets a loaded test plan react to DUT traffic.** In the STREAM example, the first accepted read of A schedules B's notification twelve clocks later, while A still needs another read. Changing one rule byte moves that notification to the second read. A plan can select either notification pin, the wire tag, the occurrence, an observed or accepted transaction, the delay and a service deadline. [Programming example](docs/info.md#transaction-triggered-p3-notifications) · [Verification results](test/README.md)
 
 ## The experiment
 

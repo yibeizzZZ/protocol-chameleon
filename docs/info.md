@@ -464,6 +464,49 @@ the same final reply fail as WRONG_CONTENT for B. This interface checks
 whole-byte fields on the SPI datapath, with two service slots and their
 existing quotas and ordering rules.
 
+### Transaction-triggered P3 notifications
+
+With an annotated byte program loaded, either notification slot can wait
+for the Nth completed record carrying a chosen wire tag. The other slot
+keeps its absolute issue time. Each trial starts with a fresh count and
+can issue one such notification. Both service quotas can be outstanding
+at once. A record follows the program's END mark even when CS stays low.
+
+In the stopped trial interface, use the usual control-selector/data writes.
+All selectors and encoded values below are hexadecimal.
+
+| Selector | Meaning |
+| --- | --- |
+| `54` | Bit 7 enables the rule (reset = 0). Bit 6 counts only services accepted by P4 when set, or all complete matching observations when clear. Bit 5 selects target DRDY_B (1) or DRDY_A (0). Bit 4 enables the additional relative service deadline. Bits 1:0 select occurrence 1–4 as N minus one. Bits 3:2 are ignored. |
+| `55` | Exact eight-bit identity tag captured by the protocol program. The P4 contract can independently associate services by tag or physical CS. |
+| `56` | Manual delay D, 0–255 system clocks from the synchronized closing sample to the notification. Zero issues on the closing tick. During a P5 campaign the selected profile supplies D in the target slot's time byte. |
+| `57` | Inclusive service window W, 0–255 clocks from notification, enabled by bit 4 of `54`. An outstanding quota times out at issue + W + 1. |
+
+The target slot must be enabled. Its absolute issue value is ignored. Its
+absolute deadline remains a hard limit, including when the trigger never
+occurs. The earliest applicable deadline governs service. After successful
+service the trial still observes through the normal absolute horizons for
+duplicates. An unannotated program or disabled target gives UNKNOWN at RUN.
+Records without a tag, partial records and ambiguous CS ownership cannot
+match. The original P4 checks continue to apply to all services.
+
+A terminal P4 decision suppresses any notification due on that edge and
+cancels a pending delay. In observation mode a matching record can still
+leave evidence on a WRONG_CONTENT decision. Accepted-only mode excludes it.
+Read `D0` without a strobe for the latest trial's trigger witness (bit 0 =
+selected occurrence reached, bit 1 = notification actually issued).
+Page `D1` counts qualifying observations up to N. Both freeze at trial end
+and clear on reset or the next trial start, including a P5 restart.
+
+**Example.** With the annotated STREAM image and descriptors above, write
+`50=38` for unordered service, then `54=E0`, `55=01`, `56=0C`. After RUN
+the first accepted tag-01 transaction schedules B twelve clocks later,
+while A can still need its second read. Change only `54` to `E1` and the
+second accepted tag-01 transaction schedules B instead. At 50 MHz the same
+12-clock delay is 240 ns. To give B a 200-clock service window as well,
+set bit 4 (`54=F1`) and write `57=C8`. The two DRDY pins, logical SPI
+transport and P4 checking predicates retain their existing roles.
+
 ### P5 feedback campaigns
 
 Enter the P3/P4 trial interface with SPI control `30` and load the checker
@@ -480,7 +523,7 @@ cancel incomplete writes. Set unused bits to zero.
 | Selector | Data |
 | --- | --- |
 | `51` | Bits 3:2 select the initial profile. Bits 1:0 give the trial bound minus one (1–4 trials). |
-| `70 + 4*p + 0,1` | Profile p's absolute issue ticks for A and B respectively, each 0–255 clocks from that trial's tick zero. These replace the two manual issue times during campaigns. Deadlines, order, quotas and checks come from P4. |
+| `70 + 4*p + 0,1` | Profile p's timing values for A and B, each 0–255 clocks. Each absolute slot uses ticks from trial start. A transaction-triggered slot uses clocks after its qualifying record. Deadlines, order, quotas and checks come from P4. |
 | `70 + 4*p + 2` | Bit 0 inverts returned status bit 7 for CS_A. Bit 1 does so for CS_B. This applies to status reads after read-to-clear masking, including the M6 byte program. Each frame samples its mode at synchronized CS assertion. Literal replies and the underlying status registers retain their values. |
 | `60 + 4*r + 0` | Rule r's current verdict in bits 2:0 (0 = any, 1–6 per the P4 table). Bit 5 enables the rule. Bit 6 requests an exact match between bits 4:3 and the P4 source mask. |
 | `60 + 4*r + 1` | Bits 2:0 match the immediately preceding verdict. Bits 5:3 match the verdict two trials back. In each field 0 = any, 1–6 = exact, 7 = no such trial yet. |
@@ -530,7 +573,7 @@ zero. The following offsets are relative to the start of a row.
 | --- | --- |
 | 0, 1 | Valid bit 3 and verdict bits 2:0; then implicated source mask. |
 | 2–5 | 16-bit decision tick, least significant nibble first. |
-| 6–7, 8–9, A | Actual issue ticks for A and B (low nibble first) and the two status-inversion bits. |
+| 6–7, 8–9, A | Applied A and B timing parameters (absolute issue tick or trigger delay, low nibble first) and the two status-inversion bits. |
 | B, C | Previous verdict and verdict two trials back. Zero indicates absent history. |
 | D | Applied profile in bits 3:2, selected destination in bits 1:0 (applied profile if unmatched). |
 | E | Bit 3 means a subsequent trial was launched, bit 2 means a rule matched, bits 1:0 identify that rule when matched. |
