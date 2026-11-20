@@ -1,42 +1,43 @@
-![](../../workflows/gds/badge.svg) ![](../../workflows/docs/badge.svg) ![](../../workflows/test/badge.svg) ![](../../workflows/fpga/badge.svg)
+﻿# Protocol Chameleon
 
-# Tiny Tapeout Verilog Project Template
+Protocol Chameleon is FoRG's prototype for a reprogrammable protocol emulator on the Tiny Tapeout IHP 130 nm platform. The research question is how much protocol behavior a chip can learn after fabrication while still responding on the device's clock. Protocol execution, transaction history, and checking logic must share an **8×4-tile budget** (roughly 1 mm² nominal).
 
-- [Read the documentation for project](docs/info.md)
+**Current status:** The Milestone 4 RTL contains a configurable UART and a four-pin programmable sequencer. The RTL has not yet been validated. The 50 MHz system clock is provisional, and area, timing closure, and maximum external clock rate are unmeasured.
 
-## What is Tiny Tapeout?
+## The experiment
 
-Tiny Tapeout is an educational project that aims to make it easier and cheaper than ever to get your digital and analog designs manufactured on a real chip.
+Imagine a flight controller reading sensor A over SPI when sensor B signals that new data is ready. The emulator must finish A's reply on the live bus. To determine whether the controller handled B correctly, it must also remember both notifications, associate each read with its source, and track two independent deadlines. If the controller misses B, the next trial can repeat the event at a different offset to narrow down when the failure occurs.
 
-To learn more and get started, visit https://tinytapeout.com.
+The design proposal divides that experiment into two research goals.
 
-## Set up your Verilog project
+- **Part A — Reprogrammable protocol emulation.** Load a description that changes framing, pin direction, timing, transaction boundaries, and legal transitions on the same chip. The proposed acceptance test includes a clocked protocol disclosed only after the hardware design is frozen.
+- **Part B — Autonomous real-time testing.** Relate traffic to earlier events, classify the result, and choose the next response or trial locally. The proposed programming model covers the protocol (P1), peripheral behavior (P2), stimuli and trial timing (P3), checking rules (P4), and feedback policy (P5).
 
-1. Add your Verilog files to the `src` folder.
-2. Edit the [info.yaml](info.yaml) and update information about your project, paying special attention to the `source_files` and `top_module` properties. If you are upgrading an existing Tiny Tapeout project, check out our [online info.yaml migration tool](https://tinytapeout.github.io/tt-yaml-upgrade-tool/).
-3. Edit [docs/info.md](docs/info.md) and add a description of your project.
-4. Adapt the testbench to your design. See [test/README.md](test/README.md) for more information.
+The current sequencer implements an initial subset of P1. Transaction models, concurrent deadline checking, replayable failure records, and feedback across trials remain research goals. The [design proposal (Word)](FoRG%20%E2%80%94%20Causal%20Feedback%20Protocol%20Emulator%20_%20Research%20Proposal%20v0.7.docx) defines the full specification and acceptance criteria.
 
-The GitHub action will automatically build the ASIC files using [LibreLane](https://www.zerotoasiccourse.com/terminology/librelane/).
+## What the RTL implements
 
-## Enable GitHub actions to build the results page
+| Interface | Behavior |
+| --- | --- |
+| UART | Independent TX and RX. Reset selects 8N1 at 434 clocks per bit, approximately 115200 baud with a 50 MHz clock. Runtime configuration selects 7 or 8 data bits, 1 or 2 stop bits, and 8–4096 clocks per bit. Each direction snapshots its settings at the start of a frame. |
+| Programmable sequencer | Up to 16 one-byte instructions control four bidirectional pins. A program can set levels and directions, sample an input, delay, wait for a rising or falling edge on one pin while sampling another, and branch on the latest sample. The host can read the four most recent sample bits. |
 
-- [Enabling GitHub Pages](https://tinytapeout.com/faq/#my-github-action-is-failing-on-the-pages-part)
+For example, the ten-byte program below describes a repeating, externally clocked one-bit exchange. On a rising edge of P0, it samples P1 and branches to drive the sampled value on P2. It holds P2 through the falling edge, releases the pin, and returns to wait for the next request.
 
-## Resources
+```text
+81 65 10 24 77 14 24 91 20 70
+```
 
-- [FAQ](https://tinytapeout.com/faq/)
-- [Digital design lessons](https://tinytapeout.com/digital_design/)
-- [Learn how semiconductors work](https://tinytapeout.com/siliwiz/)
-- [Join the community](https://tinytapeout.com/discord)
-- [Build your design locally](https://www.tinytapeout.com/guides/local-hardening/)
+To load it from reset, present each byte on `ui_in[7:0]` and strobe `uio[0]` once per byte, with at least one sampled low clock between strobes. Set `uio[3]=1` and write `00 83` to enter the engine, set `uio[3]=0` for the program bytes, then set `uio[3]=1` and write `02` to run. The same sequencer can instead generate a self-timed two-pulse burst by loading a different program. Pin ownership matters when switching modes because P0–P3 are outputs in UART mode. The [interface guide](docs/info.md) documents the pin mapping, both byte sequences, instruction timing, and turnaround procedure.
 
-## What next?
+## What would establish success
 
-- [Submit your design to the next shuttle](https://app.tinytapeout.com/).
-- Edit [this README](README.md) and explain your design, how it works, and how to test it.
-- Share your project on your social network of choice:
-  - LinkedIn [#tinytapeout](https://www.linkedin.com/search/results/content/?keywords=%23tinytapeout) [@TinyTapeout](https://www.linkedin.com/company/100708654/)
-  - Mastodon [#tinytapeout](https://chaos.social/tags/tinytapeout) [@matthewvenn](https://chaos.social/@matthewvenn)
-  - X (formerly Twitter) [#tinytapeout](https://twitter.com/hashtag/tinytapeout) [@tinytapeout](https://twitter.com/tinytapeout)
-  - Bluesky [@tinytapeout.com](https://bsky.app/profile/tinytapeout.com)
+The proposal calls for independent reference traces for UART, SPI modes 0–3, and I²C at 100/400 kHz, followed by the withheld-protocol test. Two timing targets are a history-dependent SPI target reply on the first required edge at 5 MHz and SWD-style turnaround and acknowledgement at 1 MHz. The current sequencer synchronizes external edges and observes them only while the matching wait instruction is active. Edges can be missed during a branch or delay, so the one-bit example does not establish either timing target.
+
+For Part B, the proposal calls for checking at least 100 deterministic valid traces and reproducing a failure on at least eight of ten concealed device variants within 128 valid trials per variant. The planned comparison uses RP2040 PIO with CPU/DMA and a compact FPGA under the same device behavior and deadlines. Physical area, worst-case latency, supported history depth, and host involvement will show which capabilities fit together within the tile budget.
+
+## Source files
+
+- [Tiny Tapeout top level](src/project.v) and [project manifest](info.yaml) define the external interface, pin multiplexing, source list, and tile allocation.
+- [UART transmitter](src/uart_tx.v), [receiver](src/uart_rx.v), and [runtime configuration](src/serial_config.v) implement the UART path.
+- [Protocol engine](src/protocol_engine.v) contains the instruction store, pin controls, edge sampling, and branch logic.
