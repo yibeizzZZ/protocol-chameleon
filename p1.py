@@ -67,7 +67,8 @@ def encode(op, args, labels, size):
 # Byte rule opcode, literal/register argument maximum. Only QUIET has no destination.
 SPI_RULES = {"QUIET": (0, None), "IF_BYTE": (1, 255), "STATUS_ADDR": (2, None),
              "STATUS_REG": (3, 3), "COMMIT": (4, None), "REPLY": (5, 255),
-             "IF_SEEN": (6, 3), "NEXT": (7, None)}
+             "IF_SEEN": (6, 3), "NEXT": (7, None), "IF_STATE": (8, 15),
+             "SET_STATE": (9, 15), "SHIFT_BIT": (10, None)}
 FIELDS = {"TAG": 16, "CMD": 8, "ADDR": 4, "MOSI_DATA": 2, "MISO_DATA": 3, "END": 32}
 
 
@@ -89,11 +90,16 @@ def encode_spi(op, args, labels, size):
     if op not in SPI_RULES:
         raise ValueError(f"unknown SPI rule {op!r}")
     opcode, maximum = SPI_RULES[op]
-    count = int(op != "QUIET") + int(maximum is not None)
+    count = int(op != "QUIET") + int(maximum is not None) + int(op == "IF_STATE")
     if len(args) != count:
         raise ValueError(f"{op} expects {count} operand(s)")
     target = destination(args[-1], labels, size) if op != "QUIET" else 0
     argument = number(args[0], maximum) if maximum is not None else 0
+    if op == "IF_STATE":
+        mask, value = argument, number(args[1], 15)
+        if value & ~mask:
+            raise ValueError("IF_STATE value sets bits outside the mask")
+        argument = (mask << 4) | value
     return opcode << 4 | target, argument, fields
 
 

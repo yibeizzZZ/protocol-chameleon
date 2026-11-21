@@ -341,6 +341,9 @@ next outgoing byte is zero.
 | 5 | Schedule the argument byte as a literal reply | Target |
 | 6 | Check the seen bit of the register in argument bits 1:0 | Target if seen, otherwise following state |
 | 7 | Consume one byte without emitting a reply | Target |
+| 8 | Compare the shared four-bit model register masked by argument bits 7:4 with bits 3:0 | Target on equality, otherwise following state |
+| 9 | Set shared model register to argument bits 3:0 | Target |
+| A | Shift shared model register left and insert MOSI bit 0 | Target |
 
 A branch back to state 0 can start a new logical request while CS stays low.
 A pending address refers to the most recent status read. Only operation 4

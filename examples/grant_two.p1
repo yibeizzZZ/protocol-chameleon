@@ -1,0 +1,11 @@
+# A1, vote: append vote bit 0. A read uses B2, B2, 00, 00, 00.
+# The last byte carries the response and consumes the history.
+SPI
+start: IF_BYTE 0xa1 vote | TAG
+       IF_BYTE 0xb2 decide | CMD
+       QUIET
+decide: IF_STATE 3 3 granted
+       REPLY 0 consume
+granted: REPLY 0xa5 consume
+consume: SET_STATE 0 start | END MISO_DATA
+vote: SHIFT_BIT start | END CMD MOSI_DATA

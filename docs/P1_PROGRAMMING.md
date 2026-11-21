@@ -49,5 +49,17 @@ Start with `SPI`. Each of up to eight labeled states consumes one MSB-first SPI 
 | `IF_BYTE literal target`, `IF_SEEN register target` | Branch when the input byte matches or the register has been seen. Otherwise advance to the next state. |
 | `STATUS_ADDR target`, `STATUS_REG register target` | Select the next status reply by the received byte or a fixed register (0–3). |
 | `COMMIT target`, `REPLY literal target`, `NEXT target` | Commit the pending read, send a literal byte, or advance without a reply. |
+| `SHIFT_BIT target`, `SET_STATE value target` | Append the low MOSI bit to a four-bit shared model register, or replace the register with a four-bit value. Effects occur on the last sampled bit of this operation's byte. |
+| `IF_STATE mask value target` | Jump if the masked four-bit register equals value, otherwise fall through. Both arguments are nibbles and value must fit mask. |
+
+The model register starts at zero on reset and on a new byte-program handoff.
+It persists across logical records, chip deselections and manual trials.
+[One-vote](../examples/grant_one.p1) and [two-vote](../examples/grant_two.p1)
+models accept the same wire format. An A write (`A1 vote`) appends bit 0.
+A B read (`B2 B2 00 00 00`) returns `A5` on its last byte for either one
+or two consecutive affirmative writes, depending on the loaded program.
+Completing the last read byte clears the history even after a denial.
+The example decoder also accepts non-A1 first-byte aliases with the B2
+second byte. An independent checking contract can require the exact B tag.
 
 After a rule, add a whitespace-separated `|` followed by `TAG`, `CMD`, `ADDR`, `MOSI_DATA` or `MISO_DATA`, and/or `END` to mark a logical transaction boundary. Use `| NONE` for an explicit zero annotation. An image without annotations retains physical chip-select framing. The JSON settings encode annotations for the public loader, and run command 4 enters the SPI byte engine. The stream example lets the checker count three logical records during a single physical selection. [SPI example](../examples/spi_stream.p1) · [SPI rules and wire timing](info.md#load-a-byte-transaction-program)
