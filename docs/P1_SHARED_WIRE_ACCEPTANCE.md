@@ -4,7 +4,7 @@
 
 ## Wire contract
 
-The controller drives P0 (`uio[4]`) as a 1 MHz clock, idle low, with 500 ns half-periods. P1 (`uio[5]`) is a shared push-pull data wire. P2 and P3 stay released. After RUN, the stored bit is zero. Each rising edge samples one bit.
+The controller drives P0 (`uio[4]`) as a 1 MHz clock, idle low, with 500 ns half-periods. After entering the loader, establish P0 low for three system clocks before RUN so the first edge wait sees a settled clock. P1 (`uio[5]`) is a shared push-pull data wire. P2 and P3 stay released. After RUN, the stored bit is zero. Each rising edge samples one bit.
 
 | Operation | First rising edge | Second rising edge | Third rising edge |
 | --- | --- | --- | --- |

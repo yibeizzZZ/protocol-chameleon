@@ -50,6 +50,11 @@ def drive(pins, clock, data=None):
 
 async def run_exchanges(pins, phase_ps, *, run_control=2):
     dut = pins.dut
+    # After the loader releases the GPIOs the controller owns the clock.
+    # Establish the specified idle level through the input synchronizer
+    # before the first instruction is allowed to wait for a rising edge.
+    drive(pins, 0)
+    await pins.tick(3)
     await pins.write(run_control)  # RUN initializes the stored bit to zero.
     pins.host(0, 0, 0)
     drive(pins, 0)

@@ -19,7 +19,7 @@ as zero.
 
 ## Pin interface
 
-Reset selects the UART pin mapping below. See [Programmable pin execution](#programmable-pin-execution)
+Reset selects the UART pin mapping below. See the Programmable pin execution section
 for the alternate mapping and host commands.
 
 | Pin | Direction | Function |
@@ -314,7 +314,7 @@ assertion is zero. The host does not intervene between bytes.
    drivers released until the loader owns the pins. It starts with an empty image.
 2. Write rule bytes in address order, one strobe per byte with `uio[3]=0`.
    While stopped, control `01` clears the image for a retry.
-3. Optionally load [logical transaction fields](#logical-transaction-fields)
+3. Optionally load logical transaction fields (described below)
    for the completed states. Write control `04` to select byte execution. Empty or odd-length images,
    and requests while a GPIO program is running, are ignored. Control `02`
    still runs the same store as GPIO instructions. The image is immutable
