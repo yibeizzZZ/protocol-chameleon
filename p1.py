@@ -69,7 +69,8 @@ SPI_RULES = {"QUIET": (0, None), "IF_BYTE": (1, 255), "STATUS_ADDR": (2, None),
              "STATUS_REG": (3, 3), "COMMIT": (4, None), "REPLY": (5, 255),
              "IF_SEEN": (6, 3), "NEXT": (7, None), "IF_STATE": (8, 15),
              "SET_STATE": (9, 15), "SHIFT_BIT": (10, None), "IF_STATE_PARAM": (11, 15),
-             "STORE_BYTE": (12, 1), "READ_BYTE": (13, 1), "CLEAR_BYTE": (14, 1)}
+             "STORE_BYTE": (12, 1), "READ_BYTE": (13, 1), "CLEAR_BYTE": (14, 1),
+             "REPLY_PARAM": (15, 1), "IF_BYTE_PARAM": (15, 1)}
 FIELDS = {"TAG": 16, "CMD": 8, "ADDR": 4, "MOSI_DATA": 2, "MISO_DATA": 3, "END": 32}
 
 
@@ -101,6 +102,8 @@ def encode_spi(op, args, labels, size):
         if value & ~mask:
             raise ValueError("IF_STATE value sets bits outside the mask")
         argument = (mask << 4) | value
+    elif op == "IF_BYTE_PARAM":
+        argument |= 0x80
     return opcode << 4 | target, argument, fields
 
 

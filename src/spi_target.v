@@ -17,6 +17,7 @@ module spi_target (
     input  wire       bank_enable, bank_id,
     input  wire [1:0] status_mode,
     input  wire [3:0] model_param,
+    input  wire [15:0] program_operands,
     output wire       frame_start, frame_end, byte_valid, partial_byte,
     output wire [7:0] observed_byte,
     output wire       logical_transactions, logical_end, byte_start,
@@ -67,7 +68,7 @@ module spi_target (
   localparam [3:0] END_FRAME = 0, MATCH = 1, READ_INDEX = 2, READ_FIXED = 3,
                    COMMIT = 4, LITERAL = 5, IF_SEEN = 6, ADVANCE = 7,
                    IF_STATE = 8, SET_STATE = 9, SHIFT_BIT = 10, IF_STATE_PARAM = 11,
-                   STORE_BYTE = 12, READ_BYTE = 13, CLEAR_BYTE = 14;
+                   STORE_BYTE = 12, READ_BYTE = 13, CLEAR_BYTE = 14, USE_OPERAND = 15;
   localparam [3:0] QUIET = 8;
   assign byte_state = state[2:0];
 
@@ -89,6 +90,8 @@ module spi_target (
   wire [1:0] addr = bank_enable ? {bank_id, logical_addr[0]} : logical_addr;
   reg invert_status;
   reg [3:0] frame_param;
+  reg [15:0] frame_operands;
+  wire [7:0] operand = frame_operands[8*arg[0] +: 8];
   wire [7:0] read_value = (status_value[addr] & ~(seen[addr] ? clear_mask[addr] : 8'h00))
                           ^ {invert_status, 7'd0};
   wire complete_byte = active && !cs_sync && sample_edge && bit_index == 3'd7;
@@ -174,6 +177,7 @@ module spi_target (
       active <= 0;
       invert_status <= 0;
       frame_param <= 0;
+      frame_operands <= 0;
       state <= 0;
       bit_index <= 0;
       addr_pending <= 0;
@@ -185,6 +189,7 @@ module spi_target (
       active <= 1;
       invert_status <= status_mode[bank_id];
       frame_param <= model_param;
+      frame_operands <= program_operands;
     end else if (active && sample_edge) begin
       rx_shift <= byte_in[6:0];
       bit_index <= bit_index + 1'b1;
@@ -206,6 +211,10 @@ module spi_target (
           COMMIT: addr_pending <= 0;
           LITERAL: tx_shift <= arg;
           READ_BYTE: tx_shift <= model_bytes[arg[0]];
+          USE_OPERAND: begin
+            if (!arg[7]) tx_shift <= operand;
+            else if (byte_in != operand) state <= state + 1'b1;
+          end
           IF_SEEN: if (!seen[addr]) state <= state + 1'b1;
           IF_STATE: if ((model_state & arg[7:4]) != arg[3:0]) state <= state + 1'b1;
           IF_STATE_PARAM: if (|((model_state ^ frame_param) & arg[3:0])) state <= state + 1'b1;

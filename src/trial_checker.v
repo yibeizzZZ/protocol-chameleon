@@ -16,6 +16,7 @@ module trial_checker (
     output wire bank_enable, bank_id,
     output wire [1:0] status_mode,
     output wire [3:0] model_param,
+    output wire [15:0] program_operands,
     output wire [7:0] outputs
 );
   localparam [2:0] PASS=1, TIMEOUT=2, DUPLICATE=3, WRONG_CONTENT=4,
@@ -219,6 +220,7 @@ module trial_checker (
     .clk(clk), .rst_n(rst_n), .selected(selected), .trial_running(running),
     .strobe(strobe), .control(control), .host_byte(host_byte),
     .verdict(outcome), .source_mask(implicated), .stamp(stamp),
+    .binding_valid(bound_valid), .binding_value(bound_value), .program_operands(program_operands),
     .busy(campaign_busy), .start_trial(auto_start), .issue_a(issue_a),
     .issue_b(issue_b), .status_mode(status_mode), .model_param(campaign_param), .page(campaign_page)
   );
@@ -310,7 +312,8 @@ module trial_checker (
       15: page = evidence_tag[7:4];
     endcase
   end
-  wire feedback_read = host_byte[7:6] == 2'b10 || host_byte == 8'hc0 || host_byte[7:2] == 6'h31;
+  wire feedback_read = host_byte[7:6] == 2'b10 || host_byte == 8'hc0 ||
+                       host_byte[7:2] == 6'h31 || host_byte[7:4] == 4'he;
   wire [3:0] readback = feedback_read ? campaign_page :
                         host_byte == 8'hd0 ? {2'b0,trigger_issued,trigger_fired} :
                         host_byte == 8'hd2 ? bound_value[3:0] :

@@ -348,6 +348,7 @@ next outgoing byte is zero.
 | C | Store the received MOSI byte in shared cell selected by argument bit 0 | Target |
 | D | Schedule that cell's byte as the next MISO reply | Target |
 | E | Clear that cell on this byte's final sample | Target |
+| F | Select experiment operand 0 or 1 with argument bit 0. Bit 7 clear schedules its byte as the next reply. Bit 7 set compares it with the just-received byte. | Target for a reply or equality, otherwise following state |
 
 A branch back to state 0 can start a new logical request while CS stays low.
 A pending address refers to the most recent status read. Only operation 4
@@ -632,7 +633,30 @@ cancel incomplete writes. Set unused bits to zero.
 | `70 + 4*p + 3` | Four-bit model parameter. Its meaning comes from the loaded SPI program. Read pages `C4`–`C7` for the value logged in trials 0–3. An unfilled row reads zero. |
 | `60 + 4*r + 0` | Rule r's current verdict in bits 2:0 (0 = any, 1–6 per the P4 table). Bit 5 enables the rule. Bit 6 requests an exact match between bits 4:3 and the P4 source mask. |
 | `60 + 4*r + 1` | Bits 2:0 match the immediately preceding verdict. Bits 5:3 match the verdict two trials back. In each field 0 = any, 1–6 = exact, 7 = no such trial yet. |
-| `60 + 4*r + 2` | Bits 1:0 select the next profile. Bit 2 requests STOP. Rule offset 3 is reserved. |
+| `60 + 4*r + 2` | Bits 1:0 select the next profile. Bit 2 requests STOP. |
+| `5C`, `5D` | Initial eight-bit values for program operands 0 and 1. Manual SPI selections use these seeds. Each campaign RUN copies them into two working registers. |
+| `60 + 4*r + 3` | Optional operand edit. Bit 7 enables, bit 6 selects destination 0 or 1. With bit 5 clear, add the signed five-bit delta in bits 4:0 (−16 to +15, modulo 256). With bit 5 set, copy the completed trial's captured wire field if valid. An absent field leaves the operand unchanged. |
+
+The winning rule applies its edit once when advancing to another trial.
+STOP, no match and the trial bound all suppress the edit. The previous
+trial's log captures both operands before the edit. A program can use
+either operand for a byte comparison or a reply. The shifter snapshots
+both on synchronized CS assertion, so even a campaign ending mid-frame
+cannot change the in-flight response. A later manual selection uses the
+seeds again. P2's STORE/READ/CLEAR cells persist independently across these
+transitions.
+
+**Failure-driven poll example.** Seed operand 0 with FE and operand 1 with
+19. The loaded byte program compares the header with operand 0 and replies
+with operand 1 on a match. Otherwise it replies with zero. Capture the
+second MOSI byte as CMD using producer tag 01 and binding rule 88. Configure
+both service slots, allow three trials, then repeatedly send the same A
+request `01 6D 00` and omit B. A rule for repeated TIMEOUT of B (priority
+0) copies the bound byte into operand 1 (edit E0). A rule for TIMEOUT of B
+(priority 1) increments operand 0 by three (edit 83). The three final MISO
+reply bytes are 00, 19 and 6D. Changing edit 83 to C3 redirects the addition
+to operand 1 and all three replies become 00. The host makes one RUN write
+per campaign.
 
 All fields reset to zero. Each decision uses the first matching enabled rule
 (0 before 1 before 2 before 3). No match, explicit STOP, or reaching the
@@ -670,7 +694,9 @@ source-mask predicate.
 
 **Readback.** Present the address on `ui_in` without a strobe and read the
 nibble on `uo[7:4]`. Page `C0` returns busy in bit 3 and the number of
-archived trials in bits 2:0 (0–4). Pages `80–8F`, `90–9F`, `A0–AF` and
+archived trials in bits 2:0 (0–4). Pages E0–EF return the operands applied in
+each trial. For trial n, E0 + 4*n through E3 + 4*n hold the low and high
+nibbles of operand 0, then of operand 1. Empty rows read zero. Pages `80–8F`, `90–9F`, `A0–AF` and
 `B0–BF` return records 0–3 in execution order. An unfilled row reads as
 zero. The following offsets are relative to the start of a row.
 

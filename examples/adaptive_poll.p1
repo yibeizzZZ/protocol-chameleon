@@ -1,0 +1,6 @@
+# Parameter 0 is the recognized header. Parameter 1 is its reply byte.
+SPI
+poll:   IF_BYTE_PARAM 0 answer | TAG
+deny:   REPLY 0 finish | CMD
+answer: REPLY_PARAM 1 finish | CMD
+finish: NEXT poll | END MISO_DATA

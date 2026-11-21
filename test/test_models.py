@@ -191,3 +191,84 @@ async def cross_device_byte_mailbox(dut):
         await transaction(p, mode, [A, 0xff], [0, 0])  # next image must start empty
         await p.write(0x31)
         await exit_peripheral(p)
+
+
+async def param_snapshot(p, trial):
+    nibbles = [await page(p, 0xe0 + 4*trial + i) for i in range(4)]
+    return nibbles[0] + 16*nibbles[1], nibbles[2] + 16*nibbles[3]
+
+
+@cocotb.test()
+async def failure_policy_updates_program_operands(dut):
+    p = Pins(dut)
+    await p.reset()
+    await install_program(p, "adaptive_poll")
+    await p.write(0x30)
+    trial = Trial(p)
+    await trial.plan(descriptor(0, 400, checks=0), descriptor(0, 400, checks=0), policy=0)
+    for selector, value in ((0x5c, 0xfe), (0x5d, 0x19), (0x5a, 1), (0x5b, 0x88),
+                            (0x51, 2)):
+        await field(p, selector, value)
+    await rule(p, 0, TIMEOUT, 0, source=2, prev=TIMEOUT)
+    await field(p, 0x63, 0xe0)  # copy A's observed command into operand 1
+    await rule(p, 1, TIMEOUT, 0, source=2)
+    for add_action, snapshots, replies in (
+            (0x83, [(0xfe, 0x19), (1, 0x19), (1, 0x6d)], [0, 0x19, 0x6d]),
+            (0xc3, [(0xfe, 0x19), (0xfe, 0x1c), (0xfe, 0x6d)], [0, 0, 0])):
+        # Change only the policy destination. The DUT always polls A with
+        # identical bits and never services B. RUN reseeds both operands.
+        await field(p, 0x67, add_action)
+        await launch(trial)
+        for reply in replies:
+            await p.tick(5)
+            await transaction(p, 0, [1, 0x6d, 0], [0, 0, reply])
+            await p.tick(165)
+        assert await page(p, 0xc0) == 3
+        for n, values in enumerate(snapshots):
+            assert await param_snapshot(p, n) == values
+            evidence = await record(p, n)
+            assert (evidence['verdict'], evidence['source'], evidence['rule']) == (
+                TIMEOUT, 2, 1 if n == 0 else 0)
+        assert await param_snapshot(p, 3) == (0, 0)
+
+
+@cocotb.test()
+async def terminal_frame_uses_selected_trial_operands(dut):
+    p = Pins(dut)
+    await p.reset()
+    await install_program(p, "adaptive_poll")
+    await p.write(0x30)
+    trial = Trial(p)
+    await trial.plan(descriptor(0, 40, checks=0), descriptor(0, 0, enabled=False), policy=0)
+    await field(p, 0x51, 1)
+    await field(p, 0x5c, 1)
+    await field(p, 0x5d, 0)
+    await rule(p, 0, TIMEOUT, 0, source=1)
+    for action, expected in ((0xdf, 0xff), (0xe0, 0)):
+        # Subtract one modulo 256, or copy an absent binding (hold).
+        await field(p, 0x63, action)
+        await launch(trial)
+        await trial.until(46)
+        # Trial 1 ends during the first wire byte. Its snapshotted parameter
+        # still determines the third wire byte after the campaign is over.
+        await transaction(p, 0, [1, 0, 0], [0, 0, expected])
+        assert await page(p, 0xc0) == 2
+        assert await param_snapshot(p, 1) == (1, expected)
+        await transaction(p, 0, [1, 0, 0], [0, 0, 0])
+
+
+@cocotb.test()
+async def shared_byte_cells_have_independent_contents(dut):
+    p = Pins(dut)
+    await p.reset()
+    await p.enter()
+    # Store two wire bytes. Return cell 1, then cell 0; clear only cell 1
+    # and return the two again. Each READ sends its result one byte later.
+    await p.load(bytes.fromhex("C1 00 C2 01 D3 01 D4 00 E5 01 D6 01 D7 00 00 00"))
+    await p.write(4)
+    p.inputs |= 0x10
+    p.peer_mask |= 0x70
+    await p.tick(5)
+    for first, second in ((0x92, 0x6f), (0xff, 0), (0, 0xe7)):
+        await transaction(p, 0, [first, second] + [0]*6,
+                          [0, 0, 0, second, first, 0, 0, first])

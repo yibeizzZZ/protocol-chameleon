@@ -99,3 +99,9 @@ class AssemblerTests(unittest.TestCase):
         self.assertEqual(result["image"], [0xc1, 1, 0xd2, 0, 0xe0, 1])
         with self.assertRaises(ValueError):
             compile_source("SPI\nREAD_BYTE 2 0")
+
+    def test_program_operand_instructions(self):
+        program = compile_source("SPI\nIF_BYTE_PARAM 1 0\nREPLY_PARAM 0 1")
+        self.assertEqual(program["image"], [0xf0, 0x81, 0xf1, 0])
+        with self.assertRaises(ValueError):
+            compile_source("SPI\nREPLY_PARAM 2 0")

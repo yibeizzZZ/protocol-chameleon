@@ -79,3 +79,14 @@ In the [mailbox program](../examples/mailbox.p1), send `A1 6D` on CS_A and
 executes CLEAR, so the next poll returns zero. Cutting the reply short
 preserves the value for a retry. Replacing CLEAR with NEXT makes reads
 repeatable. The image treats any first byte other than A1 as a read.
+
+### Experiment operands
+
+`IF_BYTE_PARAM index target` compares the received byte with experiment
+operand 0 or 1. Equality jumps to the target, otherwise execution falls
+through. `REPLY_PARAM index target` shifts the selected operand out on the
+next byte. The target captures both operands once per CS. The loaded program
+defines what each operand means. In the [adaptive poll](../examples/adaptive_poll.p1)
+they serve as the accepted header and its response. The host sets their seeds
+through trial selectors 5C and 5D. A feedback rule can update either value
+between trials. [Policy encoding and experiment](info.md#p5-feedback-campaigns)

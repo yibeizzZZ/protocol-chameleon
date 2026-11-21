@@ -6,6 +6,22 @@ The subsequent wire-field capture extension passes **61/61 RTL tests** and **9/9
 
 The comparable typical-library estimate increased from 112,217.351 to 115,381.249 µm² (+2.82%) and from 1,263 to 1,288 flip-flops. Ideal 20 ns register-to-register setup slack was +13.147 ns. The SPI model RTL sweep still observed 40.1–60.0 ns to MISO in all four modes. The archived routed results apply to `59f32fd`; this extension has only RTL simulation and pre-layout mapping/STA.
 
+### Device bytes and feedback operands
+
+All 65 RTL cases and 11 assembler tests passed with both extensions enabled.
+
+The mailbox pin test loads arbitrary wire bytes on CS_A, interrupts a replacement write and a CS_B read one bit early, then checks the full reply and the following empty read. At 5 MHz the mailbox reply took 40.1–60.0 ns from launch (2.005–3 system periods) across 22 offsets per mode in modes 0–3. A second image stores two distinct bytes and clears only one cell.
+
+The adaptive poll test runs two campaigns with identical DUT traffic and no host writes between trials. The same repeated B timeout causes different edits depending on the previous verdict. Changing only the destination of one edit changes the final reply bytes from `00 19 6D` to `00 00 00`. The oracle checks the replies on MISO and reads back both applied operands from each completed trial. A separate test covers negative wraparound, an absent captured field and a campaign ending during CS. [Tests](test_models.py) · [P5 programming](../docs/info.md#p5-feedback-campaigns)
+
+| Typical-library pre-layout estimate | Field capture at `683b4b0` | P2 byte cells at `376f7e1` | Byte cells and P5 operands |
+| --- | ---: | ---: | ---: |
+| Mapped area (µm²) | 115,381.249 | 117,297.520 | 129,170.236 |
+| Flip-flops | 1,288 | 1,304 | 1,448 |
+| Register-to-register setup slack at 50 MHz (ns) | +13.147 | +13.301 | +12.729 |
+
+The P5 addition includes a 16-bit operand snapshot for each of four trial records. Use the lightweight mapping command below to reproduce the estimates. Post-route measurements in the archived release cover the earlier `59f32fd` RTL.
+
 ## Reproduce the functional tests
 
 The M10 run used Ubuntu 26.04 under WSL, Python 3.11, Icarus Verilog 12.0, GNU Make 4.4.1 and Cocotb 2.0.1. From the repository root on Linux with Python 3.11 and its venv support installed, use the same Makefile, simulator and result check as the [repository's Tiny Tapeout workflow](../.github/workflows/test.yaml).
@@ -35,7 +51,7 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [I²C write and timed GPIO](test_i2c_write.py) | 2 | Standard/Fast-mode writes and target NACKs, timed-mode loader settings, slot order, STOP, replay, sample readback and jumps beyond the loaded image. |
 | [Compiled P1 examples](test_p1_sources.py) | 4 | Load editable GPIO, I²C, timed-pulse and annotated SPI sources. Check changed payloads and transaction boundaries on the pins. |
 | [Held-out two-vote interlock](test_p1_heldout.py) | 1 | Check pin ownership, response deadline and vote history across 114 frames. [Protocol and seal](../docs/P1_HELDOUT.md) |
-| [Runtime peripheral models](test_models.py) | 5 | Swap one- and two-vote models on the same wires, handle truncated writes and reads, gate notification on captured MISO, change the next trial's state predicate, freeze that parameter during CS, and exercise 5 MHz SPI in four modes across 22 phases. |
+| [Runtime peripheral models](test_models.py) | 9 | Swap one- and two-vote models on the same wires, handle truncated writes and reads, gate notification on captured MISO, change the next trial's state predicate, freeze that parameter during CS, and exercise 5 MHz SPI in four modes across 22 phases. |
 
 ## I2C controller write
 

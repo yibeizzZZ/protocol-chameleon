@@ -6,6 +6,8 @@ The GPIO engine runs a protocol written after its RTL was frozen. Two independen
 
 A second experiment loads different peripheral models into the same SPI byte engine. One A write can authorize a B read, or a program can require two successive affirmative writes. A completed B read consumes the authorization. A trial can schedule another event from the reply actually observed on MISO, check it against a separately loaded expectation and change the next trial's model parameter. [Peripheral model sources](examples/) · [Pin tests](test/test_models.py) · [Physical acceptance and artifacts](docs/PHYSICAL_ACCEPTANCE.md)
 
+A loaded program can also pass an arbitrary byte between devices. In the mailbox example a completed B read consumes A's byte and an interrupted read preserves it. In the adaptive poll example the program uses two operands as its recognized header and reply. After a missed B service, a loaded feedback rule can adjust either operand or copy a field seen on the wire into the next trial. [Mailbox source](examples/mailbox.p1) · [Adaptive poll source](examples/adaptive_poll.p1) · [Rule encoding](docs/info.md#p5-feedback-campaigns)
+
 ## The experiment
 
 Imagine a flight controller reading sensor A over SPI when sensor B signals that new data is ready. The emulator must finish A's reply on the live bus. To determine whether the controller handled B correctly, it must also remember both notifications, associate each read with its source, and track two independent deadlines. If the controller misses B, the next trial can repeat the event at a different offset to narrow down when the failure occurs.
