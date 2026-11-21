@@ -272,3 +272,73 @@ async def shared_byte_cells_have_independent_contents(dut):
     for first, second in ((0x92, 0x6f), (0xff, 0), (0, 0xe7)):
         await transaction(p, 0, [first, second] + [0]*6,
                           [0, 0, 0, second, first, 0, 0, first])
+
+
+@cocotb.test()
+async def edited_operand_latency(dut):
+    """Time two winning actions through the next trial and its first changed MISO bit."""
+    import os
+    from cocotb.triggers import ValueChange
+    from test_spi import now, miso
+
+    async def first_high_reply():
+        # Both header reply bytes are zero. Bit 7 of the edited reply is one.
+        while miso(dut) != "1":
+            await ValueChange(dut.pads)
+        return now()
+
+    p = Pins(dut)
+    await p.reset()
+    rtl_feedback = None if os.environ.get("GATES") == "yes" else dut.user_project.trials.feedback
+    for mode in range(4):
+        await install_program(p, "adaptive_poll", mode)
+        await p.write(0x30)
+        trial = Trial(p)
+        await trial.plan(descriptor(0, 330, checks=0), descriptor(0, 330, checks=0), policy=0)
+        for selector, value in ((0x5c, 1), (0x5d, 0x7f), (0x5a, 1), (0x5b, 0x88), (0x51, 1)):
+            await field(p, selector, value)
+        for slot, verdict in enumerate((PASS, WRONG, TIMEOUT)):
+            await rule(p, slot, verdict, 0, source=1)
+        await rule(p, 3, TIMEOUT, 0, source=2)
+        for edit, updated in ((0xc1, 0x80), (0xe0, 0xa5)):
+            await field(p, 0x6f, edit)
+            launches, first_bits = [], []
+            for phase in sorted({i*1000 for i in range(20)} | {9900, 10100}):
+                await launch(trial)
+                dut.ui_in.value = 0  # verdict page, no strobe
+                await p.tick(5)
+                await transaction(p, mode, [1, 0xa5, 0], [0, 0, 0x7f])
+                for _ in range(100):
+                    await p.tick()
+                    if p.uo >> 4 == TIMEOUT:
+                        break
+                assert p.uo >> 4 == TIMEOUT
+                # Pins.tick returns 10 ns after its rising edge.
+                verdict_edge = now() - 10000
+                if rtl_feedback is not None:
+                    assert int(rtl_feedback.live_operands.value) >> 8 == 0x7f
+                dut.ui_in.value = 0xc0
+                await p.tick()
+                assert p.uo >> 4 == 9  # campaign busy, one trial archived
+                if rtl_feedback is not None:
+                    assert int(rtl_feedback.live_operands.value) >> 8 == updated
+                assert now() - 10000 - verdict_edge == 20000
+                dut.ui_in.value = 0
+                await p.tick()
+                assert p.uo >> 4 == 0 and p.uo & 3 == 0
+                await p.tick()
+                assert p.uo & 3 == 3 and now() - 10000 - verdict_edge == 60000
+                pad_edge = cocotb.start_soon(first_high_reply())
+                edges, _ = await transaction(p, mode, [1, 0xa5, 0], [0, 0, updated], phase)
+                first_bits.append((await pad_edge) - verdict_edge)
+                launches.extend(edges)
+                await p.tick(100)
+                assert await param_snapshot(p, 1) == (1, updated)
+                assert (await record(p, 0))['rule'] == 3
+            assert max(launches) <= 60000
+            dut._log.info("P5 edit %02x mode %d: archive 20 ns, restart 40 ns, IRQ 60 ns; "
+                          "launch %.3f..%.3f ns; verdict-to-first-MISO %.3f..%.3f ns",
+                          edit, mode, min(launches)/1000, max(launches)/1000,
+                          min(first_bits)/1000, max(first_bits)/1000)
+        await p.write(0x31)
+        await exit_peripheral(p)
