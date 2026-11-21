@@ -1,10 +1,12 @@
 # RTL verification
 
+The feedback operand release freezes the 66-case regression at `6fd555b`. The latency case records the time from a P4 verdict to an operand update, the next trial and the first changed reply bit. [Physical results, latency and reproduction commands](../docs/P5_PHYSICAL_ACCEPTANCE.md)
+
 For the integrated logic at `86d9f79` and its project-named release at `59f32fd`, all **58 pin-level tests and nine assembler tests passed**. Five peripheral-model cases extend the 53-case P1 baseline. The shared-wire peer establishes the idle clock before RUN in test revision `4f1325e`. Run `make -C test p1` for the assembler and five compiled P1 pin tests. [Physical and gate-level evidence](../docs/PHYSICAL_ACCEPTANCE.md)
 
 The subsequent wire-field capture extension passes **61/61 RTL tests** and **9/9 assembler tests**. Three new pin tests check a DUT-chosen token under continuous CS, schedule an event using the previous payload, and exercise trial-local capture across autonomous feedback. On the previous RTL, replaying a changed contract wrongly passed and the notification fired on the first record. With capture enabled in the reactive example, the second record schedules the notification at tick 483. Run `make -C test COCOTB_TEST_MODULES=test_transactions` for the focused suite. [Programming contract](../docs/info.md#capture-a-wire-field-for-use-in-a-later-transaction)
 
-The comparable typical-library estimate increased from 112,217.351 to 115,381.249 µm² (+2.82%) and from 1,263 to 1,288 flip-flops. Ideal 20 ns register-to-register setup slack was +13.147 ns. The SPI model RTL sweep still observed 40.1–60.0 ns to MISO in all four modes. The archived routed results apply to `59f32fd`; this extension has only RTL simulation and pre-layout mapping/STA.
+The comparable typical-library estimate increased from 112,217.351 to 115,381.249 µm² (+2.82%) and from 1,263 to 1,288 flip-flops. Ideal 20 ns register-to-register setup slack was +13.147 ns. The SPI model RTL sweep still observed 40.1–60.0 ns to MISO in all four modes. The standalone field-capture checkpoint used RTL simulation and pre-layout mapping/STA. The feedback operand release includes this change in its routed design.
 
 ### Device bytes and feedback operands
 
@@ -20,7 +22,7 @@ The adaptive poll test runs two campaigns with identical DUT traffic and no host
 | Flip-flops | 1,288 | 1,304 | 1,448 |
 | Register-to-register setup slack at 50 MHz (ns) | +13.147 | +13.301 | +12.729 |
 
-The P5 addition includes a 16-bit operand snapshot for each of four trial records. Use the lightweight mapping command below to reproduce the estimates. Post-route measurements in the archived release cover the earlier `59f32fd` RTL.
+The P5 addition includes a 16-bit operand snapshot for each of four trial records. Use the lightweight mapping command below to reproduce the estimates. The new release reports the extracted delays from verdict and captured-byte registers to the working operands. [P5 path measurements](../docs/P5_PHYSICAL_ACCEPTANCE.md#extracted-p5-register-paths)
 
 ## Reproduce the functional tests
 
@@ -51,7 +53,7 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [I²C write and timed GPIO](test_i2c_write.py) | 2 | Standard/Fast-mode writes and target NACKs, timed-mode loader settings, slot order, STOP, replay, sample readback and jumps beyond the loaded image. |
 | [Compiled P1 examples](test_p1_sources.py) | 4 | Load editable GPIO, I²C, timed-pulse and annotated SPI sources. Check changed payloads and transaction boundaries on the pins. |
 | [Held-out two-vote interlock](test_p1_heldout.py) | 1 | Check pin ownership, response deadline and vote history across 114 frames. [Protocol and seal](../docs/P1_HELDOUT.md) |
-| [Runtime peripheral models](test_models.py) | 9 | Swap one- and two-vote models on the same wires, handle truncated writes and reads, gate notification on captured MISO, change the next trial's state predicate, freeze that parameter during CS, and exercise 5 MHz SPI in four modes across 22 phases. |
+| [Runtime peripheral models](test_models.py) | 10 | Swap one- and two-vote models on the same wires, handle truncated writes and reads, gate notification on captured MISO, change the next trial's state predicate, freeze that parameter during CS, and measure feedback operand latency and 5 MHz replies in four modes across 22 phases. |
 
 ## I2C controller write
 

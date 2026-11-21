@@ -1,5 +1,7 @@
 # Physical acceptance and verification evidence
 
+For the release with field capture, writable device bytes and feedback operands, see the [acceptance results and GDS for `6fd555b`](P5_PHYSICAL_ACCEPTANCE.md). The comparison below covers the two earlier releases.
+
 The frozen P1 build uses `d95090b`. The integrated peripheral-model logic is `86d9f79`. The release build at `59f32fd` uses the project-specific top name `tt_um_forg_protocol_chameleon`. The frozen P1 checkpoint uses the template top name `tt_um_example`. All builds share the same nine-source file list, 20 ns system clock, 8×4 tile outline and Tiny Tapeout port directions. The title, description and author (FoRG) are present in the committed manifest. Build inputs are identified in each official `tt_submission/commit_id.json`. The testbench and datasheet corrections are in `4f1325e`. The block name follows [Tiny Tapeout integration guidance](https://tinytapeout.com/hdl/important/). [Manifest](../info.yaml) · [Top and pin multiplexing](../src/project.v) · [Programming interface](info.md)
 
 ## Measured results
