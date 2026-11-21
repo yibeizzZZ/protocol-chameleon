@@ -2,6 +2,31 @@
 
 The experiment uses fixed synthetic SPI traffic and the Icarus model of commit `6fd555b7e008227d7bcdaa2b921525284ff5e062`. The system clock is 50 MHz (20 ns). The serial clock is 5 MHz (100 ns between launch and sample). A tick is the checker’s system-clock index from trial start. Timing values describe this digital simulation.
 
+## Results
+
+All five framing cases returned the three expected logical records and replies, including three consecutive records under one assertion of CS. Each case reported PASS at tick 601 after the inclusive 600-tick observation window. Across the four encodable branch depths, all 128 phase, mode and path combinations delivered A5 in the intended byte with 40.1 ns or more setup. The first capacity failure was the ninth rule. The requirement to send A5 on the tenth byte produced 00 because the final literal fell outside the loaded image.
+
+![Checker verdict by B issue and deadline, and launch delay by program size and phase](results/boundary/boundary.png)
+
+Of the 21 issue/deadline combinations, 12 returned PASS, seven TIMEOUT and two ORDER. With A and B both issued at tick zero, both quotas completed when B's deadline was at least 482. Shortening that deadline from 482 to 481 made the same traffic late. Moving B’s issue from 332 to 333 made its first sample ineligible, even with a deadline of 483. If both constraints were violated the checker reported TIMEOUT at tick 482. Every terminal failure identified source B and preserved A’s two accepted records. All checker responses matched the independent schedule oracle.
+
+| Measured interval | Observations | RTL time | 50 MHz cycles |
+| --- | ---: | ---: | ---: |
+| L1, launch edge to first output bit of A5 | 128 first bits | 40.1–59.9 ns | 2.005–2.995 |
+| L1, launch edge to any changing bit of A5, including first bits | 896 toggles | 40.1–59.9 ns | 2.005–2.995 |
+| Remaining setup before the 5 MHz sample | 896 toggles | 40.1–59.9 ns | 2.005–2.995 |
+| L2, external closing sample of incorrect command to registered WRONG on the verdict page | 1 trial, mode 0 | 50 ns | 2.5 |
+| L2, final admissible clock edge to registered TIMEOUT on the verdict page | 1 trial | 20 ns | 1 |
+| L3, registered TIMEOUT to effective profile 1 and archive count increment | 1 transition | 20 ns | 1 |
+| L3, same TIMEOUT to acceptance of the next trial, visible as a cleared verdict | 1 transition | 40 ns | 2 |
+| L3, same TIMEOUT to the next profile’s A notification | 1 transition | 60 ns | 3 |
+
+The 2-, 4-, 6- and 8-rule programs have the same measured maximum launch time at each tested phase. Additional comparisons consume full wire bytes before the literal instruction can schedule its reply. The two-rule fall-through program emits A5 on byte 3; the eight-rule program emits it on byte 9, six bytes or 9.6 µs later at 5 MHz. Each still meets the launch deadline within its designated reply byte. Phase coverage here samples four offsets. The [frozen release’s independent operand-edit measurement](../docs/P5_PHYSICAL_ACCEPTANCE.md) reports 40.1–60.0 ns over 22 offsets and all four modes with active feedback and history-dependent MISO data.
+
+L2’s mismatch interval includes synchronization of the external clock edge. For the timeout interval the first clock on which expiry establishes a verdict is deadline + 1. The reported one-cycle interval starts at the preceding, final admissible edge. The L3 probe checked the working profile register in RTL and observed the archive count, cleared verdict and IRQ on pins. L2 and L3 each cover the listed endpoints and cases. Additional checker decisions, feedback rules and operating conditions would require separate timing coverage.
+
+Two isolated runs produced identical 160-row CSVs (SHA-256 `74f3901ac7d06900745b9a49e9002bf0f9d38090d21de99ed0cee40d7eb5e533`). Each run includes 5 framing rows, 21 overlap rows, 128 encodable complexity rows, 1 out-of-capacity row, 2 checking rows and 3 feedback rows. The nine expected overlap violations and the unrepresentable image are retained in the CSV. The formal runs used Icarus 12.0 and Cocotb 2.0.1. A presentation-only correction removed overlapping plot titles after rendering.
+
 ## Test design
 
 | Sweep | Loaded program and external checks |
@@ -25,6 +50,20 @@ Phase is the additional delay after a fixed 40 ns lead-in from the start of the 
 | Whole design area and timing | Frozen release reports 10,246 mapped cells, 155,696.310 µm² mapped area, 191,515 µm² pre-filler routed cell area, 15.8517% core utilization, +1.788/+0.104 ns setup/hold slack | All sweeps load the same hardware. Area is a release figure for the full macro. Per-program logic area and new place-and-route measurements are outside this experiment. |
 
 Capacity and implementation figures come from the [byte-program and trial interface](../docs/info.md), [program storage RTL](../src/protocol_engine.v), [SPI target](../src/spi_target.v), [feedback policy](../src/feedback_policy.v) and [frozen physical release](../docs/P5_PHYSICAL_ACCEPTANCE.md).
+
+## Supplementary study of history across CS windows
+
+This 24-row study was added after preregistration. Both grant programs and their assembler come from the same RTL freeze. The peer sends zero, one or two affirmative A writes, each under its own CS assertion, followed by two identical B polls. An independent monitor decodes the fifth B reply byte directly from resolved CS, SCLK and MISO pin transitions. Each history is repeated in modes 0–3 at 5 MHz, at the 10.1 ns offset. Outputs below are hexadecimal.
+
+| Affirmative A writes | First B reply, grant_one | First B reply, grant_two | Second B reply, both programs |
+| ---: | --- | --- | --- |
+| 0 | 00 | 00 | 00 |
+| 1 | A5 | 00 | 00 |
+| 2 | A5 | A5 | 00 |
+
+Both programs occupy all eight rules and shift A’s vote into the same four-bit persistent register. Their predicate masks select the most recent bit or the most recent two bits. One prior affirmative write therefore produces different MISO data on the same B poll. Completion of that poll clears the register. All four SPI modes gave the displayed bytes. Across the 12 A5 replies, all 84 changing payload bits settled 59.9 ns (2.995 clocks) after launch, with 40.1 ns of setup. Constant 00 replies have a verified sampled level and no payload transition to time. These observations are tabulated separately from the 160 preregistered rows.
+
+With the environment below active, run `python research/history_probe.py` to rebuild the programs and repeat the probe. [Supplementary source](history_probe.py) · [Supplementary raw CSV](results/boundary/history.csv) · [One-vote program](../examples/grant_one.p1) · [Two-vote program](../examples/grant_two.p1)
 
 ## Reproduce
 

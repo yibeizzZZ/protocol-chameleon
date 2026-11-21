@@ -44,7 +44,7 @@ def main(directory):
           title="Worst changing-bit launch to valid MISO (ns, 100 ns available)")
     for axis in (a, b):
         axis.tick_params(length=0)
-        axis.set_title(axis.get_title(), loc="left", fontsize=11, pad=12)
+        axis.title.set_fontsize(11)
     fig.savefig(directory / "boundary.png", dpi=170)
     plt.close(fig)
 

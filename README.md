@@ -10,6 +10,8 @@ A loaded program can also pass an arbitrary byte between devices. In the mailbox
 
 ## The experiment
 
+The internal research evaluation compares on-chip feedback, a development-selected scan and random legal stimuli on ten held-out controller models. It also measures a host implementation of the same policy and the frozen hardware's workload boundaries. [Preregistered plan](docs/RESEARCH_EVALUATION_PLAN.md) · [Results](research/RESEARCH_RESULTS.md) · [Reproduction commands](research/README.md)
+
 In the discovery experiment the ASIC uses a byte observed in one trial to change its next SPI reply. Three public controller faults surfaced only with that edit enabled. Each reproduced on three fresh runs and from saved wire traffic. The independent ten-variant evaluation remains open. [Results, controls and replay instructions](docs/DISCOVERY_EVIDENCE.md)
 
 Imagine a flight controller reading sensor A over SPI when sensor B signals that new data is ready. The emulator must finish A's reply on the live bus. To determine whether the controller handled B correctly, it must also remember both notifications, associate each read with its source, and track two independent deadlines. If the controller misses B, the next trial can repeat the event at a different offset to narrow down when the failure occurs.

@@ -1,0 +1,6 @@
+method,advances,min_clocks,median_clocks,max_clocks
+chip,7868,3,3.0,3
+host0,7868,14,22.0,22
+host1,7868,64,72.0,72
+host10,7868,514,522.0,522
+host100,7868,5014,5022.0,5022

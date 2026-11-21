@@ -2,6 +2,8 @@
 
 **Status: local development verification.** The three public fault models contribute zero cases to the independent hidden-DUT evaluation.
 
+The later internal study kept these cases in training, froze its policies, then compared them on a separately authored ten-model panel. It publishes the misses, paired-seed results and full cost of confirmation. [Research evaluation](../research/RESEARCH_RESULTS.md)
+
 The frozen design at `6fd555b` found three response-dependent service errors in three public controller models. All three reproduced from reset and on the archived functional gate netlist. The models and the experiment were authored together. The independent ten-variant T5 panel is still open. [v0.7 acceptance target](PRODUCT_SPEC.md#e-hidden-evaluation) · [Recorded pin evidence](evidence/discovery-local.json) · [Gate netlist provenance](P5_PHYSICAL_ACCEPTANCE.md)
 
 ## Experiment and results
