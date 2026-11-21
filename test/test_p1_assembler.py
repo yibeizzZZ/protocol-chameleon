@@ -84,3 +84,12 @@ class AssemblerTests(unittest.TestCase):
                 self.assertEqual(program["settings"][-1], [0x24, slot])
         with self.assertRaisesRegex(ValueError, "line 2"):
             compile_source("TIMED 2 2\nCHECK 0 64")
+
+    def test_model_instructions(self):
+        result = compile_source("SPI\nloop: IF_STATE 3 1 loop\nSET_STATE 12 loop\n"
+                                "SHIFT_BIT loop\nIF_STATE_PARAM 7 loop")
+        self.assertEqual(result["image"], [0x80, 0x31, 0x90, 12, 0xa0, 0, 0xb0, 7])
+        for op in ("IF_STATE 2 1 0", "IF_STATE 16 1 0", "SHIFT_BIT 1 0",
+                   "SET_STATE 16 0", "IF_STATE_PARAM 3 nowhere"):
+            with self.subTest(op=op), self.assertRaises(ValueError):
+                compile_source("SPI\n" + op)

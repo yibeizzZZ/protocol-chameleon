@@ -51,6 +51,7 @@ Start with `SPI`. Each of up to eight labeled states consumes one MSB-first SPI 
 | `COMMIT target`, `REPLY literal target`, `NEXT target` | Commit the pending read, send a literal byte, or advance without a reply. |
 | `SHIFT_BIT target`, `SET_STATE value target` | Append the low MOSI bit to a four-bit shared model register, or replace the register with a four-bit value. Effects occur on the last sampled bit of this operation's byte. |
 | `IF_STATE mask value target` | Jump if the masked four-bit register equals value, otherwise fall through. Both arguments are nibbles and value must fit mask. |
+| `IF_STATE_PARAM mask target` | Compare model state and the current experiment parameter on bits selected by mask. Jump on equality. The peripheral samples the parameter on CS assertion. |
 
 The model register starts at zero on reset and on a new byte-program handoff.
 It persists across logical records, chip deselections and manual trials.

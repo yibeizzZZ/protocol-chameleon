@@ -1,0 +1,11 @@
+# A writes vote bits. B grants when the two most recent bits match
+# the low two bits of the parameter latched at physical selection.
+SPI
+start: IF_BYTE 0xa1 vote | TAG
+       IF_BYTE 0xb2 decide | CMD
+       QUIET
+decide: IF_STATE_PARAM 3 granted
+       REPLY 0 consume
+granted: REPLY 0xa5 consume
+consume: SET_STATE 0 start | END MISO_DATA
+vote: SHIFT_BIT start | END CMD MOSI_DATA

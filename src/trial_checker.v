@@ -15,6 +15,7 @@ module trial_checker (
     output reg selected,
     output wire bank_enable, bank_id,
     output wire [1:0] status_mode,
+    output wire [3:0] model_param,
     output wire [7:0] outputs
 );
   localparam [2:0] PASS=1, TIMEOUT=2, DUPLICATE=3, WRONG_CONTENT=4,
@@ -36,12 +37,17 @@ module trial_checker (
   reg reactive, accepted_only, target_slot, relative_deadline;
   reg [1:0] ordinal_minus_one;
   reg [7:0] trigger_tag, trigger_delay, service_window;
+  reg qualify_data;
+  reg [7:0] trigger_data;
+  reg [3:0] manual_param;
   reg [4:0] selector;
   reg write_pending, running;
   wire command = selected && strobe && control;
   wire campaign_busy, auto_start;
   wire [7:0] issue_a, issue_b;
   wire [3:0] campaign_page;
+  wire [3:0] campaign_param;
+  assign model_param = campaign_busy ? campaign_param : manual_param;
   wire start = auto_start || (command && host_byte == 8'h32 && !running && !campaign_busy);
   assign bank_enable = selected && policy[2];
   assign bank_id = cs_active[1];
@@ -59,6 +65,9 @@ module trial_checker (
       trigger_tag <= 0;
       trigger_delay <= 0;
       service_window <= 0;
+      qualify_data <= 0;
+      trigger_data <= 0;
+      manual_param <= 0;
       for (i=0; i<16; i=i+1) cfg[i] <= 0;
     end else if (!selected) begin
       selected <= spi_selected && control && strobe && host_byte == 8'h30;
@@ -67,18 +76,21 @@ module trial_checker (
       if (control) begin
         selected <= host_byte != 8'h31;
         write_pending <= host_byte[7:4] == 4'h4 || host_byte == 8'h50 ||
-                         host_byte[7:1] == 7'h29 || host_byte[7:2] == 6'h15;
+                         host_byte[7:1] == 7'h29 || host_byte[7:2] == 6'h15 ||
+                         host_byte[7:1] == 7'h2c;
         selector <= host_byte[4:0];
       end else if (write_pending) begin
         if (!selector[4]) cfg[selector[3:0]] <= host_byte;
         else case (selector)
           5'h10: policy <= host_byte;
           5'h12, 5'h13: expected_data[selector[0]] <= host_byte;
-          5'h14: {reactive, accepted_only, target_slot, relative_deadline, ordinal_minus_one}
-                     <= {host_byte[7:4], host_byte[1:0]};
+          5'h14: {reactive, accepted_only, target_slot, relative_deadline, qualify_data, ordinal_minus_one}
+                     <= {host_byte[7:4], host_byte[2:0]};
           5'h15: trigger_tag <= host_byte;
           5'h16: trigger_delay <= host_byte;
           5'h17: service_window <= host_byte;
+          5'h18: manual_param <= host_byte[3:0];
+          5'h19: trigger_data <= host_byte;
           default: ;
         endcase
         write_pending <= 0;
@@ -150,7 +162,9 @@ module trial_checker (
   // fact, while a terminal decision always wins over issuing a notification.
   wire match_record = reactive && !trigger_fired && txn_end && frame_open &&
                       cs_active == owner && (owner == 1 || owner == 2) &&
-                      present[3] && tag == trigger_tag && (!accepted_only || decision == 0);
+                      present[3] && tag == trigger_tag &&
+                      (!qualify_data || (present[0] && data_byte == trigger_data)) &&
+                      (!accepted_only || decision == 0);
   wire fire_now = match_record && occurrences[1:0] == ordinal_minus_one;
   wire [7:0] delay_ticks = campaign_busy ? (target_slot ? issue_b : issue_a) : trigger_delay;
   assign reactive_due = !trigger_issued && decision == 0 &&
@@ -178,7 +192,7 @@ module trial_checker (
     .strobe(strobe), .control(control), .host_byte(host_byte),
     .verdict(outcome), .source_mask(implicated), .stamp(stamp),
     .busy(campaign_busy), .start_trial(auto_start), .issue_a(issue_a),
-    .issue_b(issue_b), .status_mode(status_mode), .page(campaign_page)
+    .issue_b(issue_b), .status_mode(status_mode), .model_param(campaign_param), .page(campaign_page)
   );
   always @* begin
     decision = 0;
@@ -268,7 +282,7 @@ module trial_checker (
       15: page = evidence_tag[7:4];
     endcase
   end
-  wire feedback_read = host_byte[7:6] == 2'b10 || host_byte == 8'hc0;
+  wire feedback_read = host_byte[7:6] == 2'b10 || host_byte == 8'hc0 || host_byte[7:2] == 6'h31;
   wire [3:0] readback = feedback_read ? campaign_page :
                         host_byte == 8'hd0 ? {2'b0,trigger_issued,trigger_fired} :
                         host_byte == 8'hd1 ? {1'b0,occurrences} : page;

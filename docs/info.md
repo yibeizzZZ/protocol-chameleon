@@ -344,6 +344,7 @@ next outgoing byte is zero.
 | 8 | Compare the shared four-bit model register masked by argument bits 7:4 with bits 3:0 | Target on equality, otherwise following state |
 | 9 | Set shared model register to argument bits 3:0 | Target |
 | A | Shift shared model register left and insert MOSI bit 0 | Target |
+| B | Compare model register and frame parameter on bits selected by argument bits 3:0 | Target on equality, otherwise following state |
 
 A branch back to state 0 can start a new logical request while CS stays low.
 A pending address refers to the most recent status read. Only operation 4
@@ -535,10 +536,12 @@ All selectors and encoded values below are hexadecimal.
 
 | Selector | Meaning |
 | --- | --- |
-| `54` | Bit 7 enables the rule (reset = 0). Bit 6 counts only services accepted by P4 when set, or all complete matching observations when clear. Bit 5 selects target DRDY_B (1) or DRDY_A (0). Bit 4 enables the additional relative service deadline. Bits 1:0 select occurrence 1–4 as N minus one. Bits 3:2 are ignored. |
+| `54` | Bit 7 enables the rule (reset = 0). Bit 6 counts only services accepted by P4 when set, or all complete matching observations when clear. Bit 5 selects target DRDY_B (1) or DRDY_A (0). Bit 4 enables the additional relative service deadline. Bit 2 also requires captured data to equal selector `59`. Bits 1:0 select occurrence 1–4 as N minus one. Bit 3 is ignored. |
 | `55` | Exact eight-bit identity tag captured by the protocol program. The P4 contract can independently associate services by tag or physical CS. |
 | `56` | Manual delay D, 0–255 system clocks from the synchronized closing sample to the notification. Zero issues on the closing tick. During a P5 campaign the selected profile supplies D in the target slot's time byte. |
 | `57` | Inclusive service window W, 0–255 clocks from notification, enabled by bit 4 of `54`. An outstanding quota times out at issue + W + 1. |
+| `58` | Manual four-bit model parameter, sampled on physical CS assertion. A running campaign supplies the applied profile's parameter instead. |
+| `59` | Expected wire data for a P3 trigger with bit 2 set. An absent field cannot qualify. P4 retains its separate comparisons at selectors `52` and `53`. |
 
 The target slot must be enabled. Its absolute issue value is ignored. Its
 absolute deadline remains a hard limit, including when the trigger never
@@ -583,9 +586,10 @@ cancel incomplete writes. Set unused bits to zero.
 | `51` | Bits 3:2 select the initial profile. Bits 1:0 give the trial bound minus one (1–4 trials). |
 | `70 + 4*p + 0,1` | Profile p's timing values for A and B, each 0–255 clocks. Each absolute slot uses ticks from trial start. A transaction-triggered slot uses clocks after its qualifying record. Deadlines, order, quotas and checks come from P4. |
 | `70 + 4*p + 2` | Bit 0 inverts returned status bit 7 for CS_A. Bit 1 does so for CS_B. This applies to status reads after read-to-clear masking, including the M6 byte program. Each frame samples its mode at synchronized CS assertion. Literal replies and the underlying status registers retain their values. |
+| `70 + 4*p + 3` | Four-bit model parameter. Its meaning comes from the loaded SPI program. Read pages `C4`–`C7` for the value logged in trials 0–3. An unfilled row reads zero. |
 | `60 + 4*r + 0` | Rule r's current verdict in bits 2:0 (0 = any, 1–6 per the P4 table). Bit 5 enables the rule. Bit 6 requests an exact match between bits 4:3 and the P4 source mask. |
 | `60 + 4*r + 1` | Bits 2:0 match the immediately preceding verdict. Bits 5:3 match the verdict two trials back. In each field 0 = any, 1–6 = exact, 7 = no such trial yet. |
-| `60 + 4*r + 2` | Bits 1:0 select the next profile. Bit 2 requests STOP. Offset 3 of each profile/rule is reserved. |
+| `60 + 4*r + 2` | Bits 1:0 select the next profile. Bit 2 requests STOP. Rule offset 3 is reserved. |
 
 All fields reset to zero. Each decision uses the first matching enabled rule
 (0 before 1 before 2 before 3). No match, explicit STOP, or reaching the

@@ -11,6 +11,7 @@ module feedback_policy (
     output wire busy, start_trial,
     output wire [7:0] issue_a, issue_b,
     output wire [1:0] status_mode,
+    output wire [3:0] model_param,
     output reg [3:0] page
 );
   localparam IDLE=2'd0, START=2'd1, WAIT_RESULT=2'd2;
@@ -24,10 +25,12 @@ module feedback_policy (
   reg [2:0] action [0:3];    // stop, next profile
   reg [7:0] time_a [0:3], time_b [0:3];
   reg [1:0] modes [0:3];
+  reg [3:0] params [0:3];
   reg [3:0] match_source;
   assign issue_a = time_a[profile];
   assign issue_b = time_b[profile];
   assign status_mode = busy ? modes[profile] : 2'b00;
+  assign model_param = params[profile];
 
   reg pending;
   reg [7:0] selector;
@@ -49,6 +52,7 @@ module feedback_policy (
         time_a[i] <= 0;
         time_b[i] <= 0;
         modes[i] <= 0;
+        params[i] <= 0;
       end
     end else if (configure) begin
       pending <= control && (host_byte == 8'h51 || host_byte[7:5] == 3'b011);
@@ -62,7 +66,7 @@ module feedback_policy (
             0: time_a[index] <= host_byte;
             1: time_b[index] <= host_byte;
             2: modes[index] <= host_byte[1:0];
-            default: ;
+            3: params[index] <= host_byte[3:0];
           endcase
         end else begin
           case (selector[1:0])
@@ -102,7 +106,7 @@ module feedback_policy (
 
   // Written once per completed trial. Count gates unread/uninitialized rows.
   // Snapshot parameter values so subsequent host edits cannot rewrite history.
-  reg [53:0] records [0:3];
+  reg [57:0] records [0:3];
   always @(posedge clk) begin
     if (!rst_n) begin
       state <= IDLE;
@@ -119,7 +123,7 @@ module feedback_policy (
     end else if (state == START) begin
       state <= WAIT_RESULT;
     end else if (state == WAIT_RESULT && verdict != 0) begin
-      records[count[1:0]] <= {(|rule_hits && choice[2]), advance, |rule_hits, winner, profile,
+      records[count[1:0]] <= {model_param, (|rule_hits && choice[2]), advance, |rule_hits, winner, profile,
           (|rule_hits ? choice[1:0] : profile), older, previous, modes[profile],
           issue_b, issue_a, stamp, source_mask, verdict};
       count <= count + 1'b1;
@@ -132,18 +136,21 @@ module feedback_policy (
     end
   end
 
-  wire [1:0] row = host_byte[5:4];
+  wire param_page = host_byte[7:2] == 6'h31; // C4..C7: applied model parameter
+  wire [1:0] row = param_page ? host_byte[1:0] : host_byte[5:4];
+  wire [3:0] logged_param;
   wire logged_stop, logged_advance, logged_hit;
   wire [1:0] logged_rule, logged_profile, logged_target, logged_mode, logged_source;
   wire [2:0] logged_older, logged_previous, logged_verdict;
   wire [7:0] logged_b, logged_a;
   wire [15:0] logged_tick;
-  assign {logged_stop, logged_advance, logged_hit, logged_rule, logged_profile,
+  assign {logged_param, logged_stop, logged_advance, logged_hit, logged_rule, logged_profile,
           logged_target, logged_older, logged_previous, logged_mode, logged_b,
           logged_a, logged_tick, logged_source, logged_verdict} = records[row];
   always @* begin
     page = 0;
     if (host_byte == 8'hc0) page = {busy,count};
+    else if (param_page && {1'b0,row} < count) page = logged_param;
     else if (host_byte[7:6] == 2'b10 && {1'b0,row} < count) begin
       case (host_byte[3:0])
         0: page = {1'b1,logged_verdict};
