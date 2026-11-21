@@ -1,7 +1,7 @@
 # Single-corner register-to-register setup estimate; no pad or board budget.
 read_liberty $::env(LIBERTY)
 read_verilog [file join $::env(ESTIMATE_DIR) mapped.v]
-link_design tt_um_example
+link_design tt_um_forg_protocol_chameleon
 create_clock -name sys -period 20 [get_ports clk]
 report_checks -path_delay max -from [all_registers] -to [all_registers] -digits 3
 # Bound the internal registered output path across modes. Zero external load
