@@ -345,6 +345,9 @@ next outgoing byte is zero.
 | 9 | Set shared model register to argument bits 3:0 | Target |
 | A | Shift shared model register left and insert MOSI bit 0 | Target |
 | B | Compare model register and frame parameter on bits selected by argument bits 3:0 | Target on equality, otherwise following state |
+| C | Store the received MOSI byte in shared cell selected by argument bit 0 | Target |
+| D | Schedule that cell's byte as the next MISO reply | Target |
+| E | Clear that cell on this byte's final sample | Target |
 
 A branch back to state 0 can start a new logical request while CS stays low.
 A pending address refers to the most recent status read. Only operation 4

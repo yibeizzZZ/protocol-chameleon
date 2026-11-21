@@ -93,3 +93,9 @@ class AssemblerTests(unittest.TestCase):
                    "SET_STATE 16 0", "IF_STATE_PARAM 3 nowhere"):
             with self.subTest(op=op), self.assertRaises(ValueError):
                 compile_source("SPI\n" + op)
+
+    def test_byte_cells(self):
+        result = compile_source("SPI\nSTORE_BYTE 1 1\nREAD_BYTE 0 2\nCLEAR_BYTE 1 0")
+        self.assertEqual(result["image"], [0xc1, 1, 0xd2, 0, 0xe0, 1])
+        with self.assertRaises(ValueError):
+            compile_source("SPI\nREAD_BYTE 2 0")

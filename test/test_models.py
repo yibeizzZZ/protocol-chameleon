@@ -14,14 +14,18 @@ B = 0xb2
 READ = [B, B, 0, 0, 0]
 
 
-async def install_model(p, name, mode=0):
+async def install_program(p, name, mode=0):
     await p.enter()
-    run = await load_source(p, ROOT / "examples" / f"grant_{name}.p1")
+    run = await load_source(p, ROOT / "examples" / f"{name}.p1")
     await p.write(run)
     p.inputs |= 0x10
     p.peer_mask |= 0x70
     await p.tick(5)
     await p.write(0x10 + mode)
+
+
+async def install_model(p, name, mode=0):
+    await install_program(p, f"grant_{name}", mode)
 
 
 @cocotb.test()
@@ -160,5 +164,30 @@ async def shared_history_at_five_mhz(dut):
         dut._log.info("model mode %d: %d toggles, %.3f..%.3f ns, setup %.3f ns",
                       mode, len(delays), min(delays)/1000, max(delays)/1000,
                       100-max(delays)/1000)
+        await p.write(0x31)
+        await exit_peripheral(p)
+
+
+@cocotb.test()
+async def cross_device_byte_mailbox(dut):
+    p = Pins(dut)
+    await p.reset()
+    poll = [B, 0, 0]
+    for mode in range(4):
+        await install_program(p, "mailbox", mode)
+        await p.write(0x30)  # expose both physical selects
+        await transaction(p, mode, poll, [0, 0, 0], sensor=1)
+        delays = []
+        for n, phase in enumerate(sorted({i*1000 for i in range(20)} | {9900, 10100})):
+            token = (0xff - 73*n) & 255
+            await transaction(p, mode, [A, token], [0, 0], phase)
+            await transaction(p, mode, [A, token ^ 255], [0, 0], phase, bit_count=15)
+            await transaction(p, mode, poll, [0, 0, token], phase, bit_count=23, sensor=1)
+            edges, _ = await transaction(p, mode, poll, [0, 0, token], phase, sensor=1)
+            delays.extend(edges)
+            await transaction(p, mode, poll, [0, 0, 0], phase, sensor=1)
+        dut._log.info("mailbox mode %d: launch %.3f..%.3f ns", mode,
+                      min(delays)/1000, max(delays)/1000)
+        await transaction(p, mode, [A, 0xff], [0, 0])  # next image must start empty
         await p.write(0x31)
         await exit_peripheral(p)

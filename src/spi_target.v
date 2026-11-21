@@ -66,7 +66,8 @@ module spi_target (
   assign byte_in = {rx_shift, sync_pins[0]};
   localparam [3:0] END_FRAME = 0, MATCH = 1, READ_INDEX = 2, READ_FIXED = 3,
                    COMMIT = 4, LITERAL = 5, IF_SEEN = 6, ADVANCE = 7,
-                   IF_STATE = 8, SET_STATE = 9, SHIFT_BIT = 10, IF_STATE_PARAM = 11;
+                   IF_STATE = 8, SET_STATE = 9, SHIFT_BIT = 10, IF_STATE_PARAM = 11,
+                   STORE_BYTE = 12, READ_BYTE = 13, CLEAR_BYTE = 14;
   localparam [3:0] QUIET = 8;
   assign byte_state = state[2:0];
 
@@ -110,13 +111,18 @@ module spi_target (
   // Shared across logical addresses and CS windows. Write on the complete
   // operation byte only; a partial poll cannot consume another device's state.
   reg [3:0] model_state;
+  reg [7:0] model_bytes [0:1];
   always @(posedge clk) begin
-    if (!rst_n || start_byte_program)
+    if (!rst_n || start_byte_program) begin
       model_state <= 0;
-    else if (loaded_profile && complete_byte) begin
+      model_bytes[0] <= 0;
+      model_bytes[1] <= 0;
+    end else if (loaded_profile && complete_byte) begin
       case (op)
         SET_STATE: model_state <= arg[3:0];
         SHIFT_BIT: model_state <= {model_state[2:0], byte_in[0]};
+        STORE_BYTE: model_bytes[arg[0]] <= byte_in;
+        CLEAR_BYTE: model_bytes[arg[0]] <= 0;
         default: ;
       endcase
     end
@@ -199,10 +205,11 @@ module spi_target (
           end
           COMMIT: addr_pending <= 0;
           LITERAL: tx_shift <= arg;
+          READ_BYTE: tx_shift <= model_bytes[arg[0]];
           IF_SEEN: if (!seen[addr]) state <= state + 1'b1;
           IF_STATE: if ((model_state & arg[7:4]) != arg[3:0]) state <= state + 1'b1;
           IF_STATE_PARAM: if (|((model_state ^ frame_param) & arg[3:0])) state <= state + 1'b1;
-          ADVANCE, SET_STATE, SHIFT_BIT: state <= target;
+          ADVANCE, SET_STATE, SHIFT_BIT, STORE_BYTE, CLEAR_BYTE: state <= target;
           default: begin
             state <= QUIET;
             addr_pending <= 0;

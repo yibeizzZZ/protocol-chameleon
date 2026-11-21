@@ -1,0 +1,8 @@
+# A1 <byte> writes the shared cell. Any other opcode reads it.
+# B2 <dummy> <reply slot> is the canonical read on the other CS.
+SPI
+header: IF_BYTE 0xa1 save | TAG
+fetch:  READ_BYTE 0 consume
+consume: CLEAR_BYTE 0 idle | END MISO_DATA
+save:   STORE_BYTE 0 idle | END MOSI_DATA
+idle:   QUIET

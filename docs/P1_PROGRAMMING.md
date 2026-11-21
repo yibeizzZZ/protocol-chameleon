@@ -64,3 +64,18 @@ The example decoder also accepts non-A1 first-byte aliases with the B2
 second byte. An independent checking contract can require the exact B tag.
 
 After a rule, add a whitespace-separated `|` followed by `TAG`, `CMD`, `ADDR`, `MOSI_DATA` or `MISO_DATA`, and/or `END` to mark a logical transaction boundary. Use `| NONE` for an explicit zero annotation. An image without annotations retains physical chip-select framing. The JSON settings encode annotations for the public loader, and run command 4 enters the SPI byte engine. The stream example lets the checker count three logical records during a single physical selection. [SPI example](../examples/spi_stream.p1) · [SPI rules and wire timing](info.md#load-a-byte-transaction-program)
+
+### Shared device bytes
+
+`STORE_BYTE index target` saves the eight MOSI bits just received.
+`READ_BYTE index target` schedules the saved byte on the next eight MISO
+bits. `CLEAR_BYTE index target` writes zero. Index 0 or 1 selects one of
+two independent cells shared across devices, selects and trials. Reset and
+starting a new SPI program clear both cells. Each instruction takes effect
+on its last sampled bit.
+
+In the [mailbox program](../examples/mailbox.p1), send `A1 6D` on CS_A and
+`B2 00 00` on CS_B. The final reply byte is `6D`. Completing the reply
+executes CLEAR, so the next poll returns zero. Cutting the reply short
+preserves the value for a retry. Replacing CLEAR with NEXT makes reads
+repeatable. The image treats any first byte other than A1 as a read.
