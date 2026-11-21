@@ -1,0 +1,27 @@
+{
+  "selected": "trained",
+  "thresholds": [
+    2,
+    4,
+    8
+  ],
+  "hits": {
+    "linear": [
+      0,
+      0,
+      0
+    ],
+    "stride": [
+      0,
+      0,
+      30
+    ],
+    "trained": [
+      30,
+      60,
+      90
+    ]
+  },
+  "seeds": 30,
+  "faulty_cases": 3
+}
