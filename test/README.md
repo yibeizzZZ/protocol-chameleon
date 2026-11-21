@@ -1,6 +1,6 @@
 # RTL verification
 
-The default RTL regression passed **53 tests, 0 failed, 0 skipped** in a fresh checkout of `fa1ce36`. The 48 existing tests are joined by four source-to-pin examples and a held-out protocol. All RTL suites use the top-level harness. Eight host-side tests also check the P1 assembler. Run `make -C test p1` from the repository root for the host tests and the five source-to-pin cases.
+For the integrated logic at `86d9f79` and its project-named release at `59f32fd`, all **58 pin-level tests and nine assembler tests passed**. Five peripheral-model cases extend the 53-case P1 baseline. The shared-wire peer establishes the idle clock before RUN in test revision `4f1325e`. Run `make -C test p1` for the assembler and five compiled P1 pin tests. [Physical and gate-level evidence](../docs/PHYSICAL_ACCEPTANCE.md)
 
 ## Reproduce the functional tests
 
@@ -31,6 +31,7 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [I²C write and timed GPIO](test_i2c_write.py) | 2 | Standard/Fast-mode writes and target NACKs, timed-mode loader settings, slot order, STOP, replay, sample readback and jumps beyond the loaded image. |
 | [Compiled P1 examples](test_p1_sources.py) | 4 | Load editable GPIO, I²C, timed-pulse and annotated SPI sources. Check changed payloads and transaction boundaries on the pins. |
 | [Held-out two-vote interlock](test_p1_heldout.py) | 1 | Check pin ownership, response deadline and vote history across 114 frames. [Protocol and seal](../docs/P1_HELDOUT.md) |
+| [Runtime peripheral models](test_models.py) | 5 | Swap one- and two-vote models on the same wires, handle truncated writes and reads, gate notification on captured MISO, change the next trial's state predicate, freeze that parameter during CS, and exercise 5 MHz SPI in four modes across 22 phases. |
 
 ## I2C controller write
 
@@ -59,7 +60,7 @@ Using the same typical IHP library and pre-layout estimation flow as M10,
 timed GPIO maps to 6,018 standard cells including 1,210 flip-flops. Mapped
 area is 106,765.457 µm² (+4.11% over M10). Worst register-to-register setup
 slack at an ideal 20 ns clock is +13.074 ns (M10 was +12.677 ns).
-Post-route timing and precheck for this revision remain to be measured.
+The metadata-complete P1 checkpoint and subsequent shared-state design are compared in the [physical report](../docs/PHYSICAL_ACCEPTANCE.md).
 
 ## Transaction-triggered scheduling and latency
 

@@ -2,9 +2,9 @@
 
 Protocol Chameleon is FoRG's prototype for a reprogrammable protocol emulator on the Tiny Tapeout IHP 130 nm platform. The research question is how much protocol behavior a chip can learn after fabrication while still responding on the device's clock. Protocol execution, transaction history, and checking logic must share an **8×4-tile budget** (roughly 1 mm² nominal).
 
-**Milestone 10 lets a loaded test plan react to DUT traffic.** In the STREAM example, the first accepted read of A schedules B's notification twelve clocks later, while A still needs another read. Changing one rule byte moves that notification to the second read. A plan can select either notification pin, the wire tag, the occurrence, an observed or accepted transaction, the delay and a service deadline. [Programming example](docs/info.md#transaction-triggered-p3-notifications) · [Verification results](test/README.md)
+The GPIO engine runs a protocol written after its RTL was frozen. Two independent AI authors used the public instructions to implement a previously withheld two-vote handshake. A pin-level peer checked 114 frames. Build and run this example and four others with `make -C test p1`. [Programming guide](docs/P1_PROGRAMMING.md) · [Held-out protocol, authorship and negative control](docs/P1_HELDOUT.md)
 
-Build the editable P1 examples and check the transactions on the resolved RTL pins with `make -C test p1` in the simulation environment. [P1 programming guide](docs/P1_PROGRAMMING.md) · [Held-out protocol and results](docs/P1_HELDOUT.md)
+A second experiment loads different peripheral models into the same SPI byte engine. One A write can authorize a B read, or a program can require two successive affirmative writes. A completed B read consumes the authorization. A trial can schedule another event from the reply actually observed on MISO, check it against a separately loaded expectation and change the next trial's model parameter. [Peripheral model sources](examples/) · [Pin tests](test/test_models.py) · [Physical acceptance and artifacts](docs/PHYSICAL_ACCEPTANCE.md)
 
 ## The experiment
 
@@ -15,7 +15,7 @@ The design proposal divides that experiment into two research goals.
 - **Part A — Reprogrammable protocol emulation.** Load a description that changes framing, pin direction, timing, transaction boundaries, and legal transitions on the same chip. The proposed acceptance test includes a clocked protocol disclosed only after the hardware design is frozen.
 - **Part B — Autonomous real-time testing.** Relate traffic to earlier events, classify the result, and choose the next response or trial locally. The proposed programming model covers the protocol (P1), peripheral behavior (P2), stimuli and trial timing (P3), checking rules (P4), and feedback policy (P5).
 
-The sequencer implements a subset of P1. The SPI peripheral supplies a bounded P2 device model with per-address read history. P3/P4 support one programmable event per sensor with independent service deadlines. P5 can select among four loaded parameter profiles. General transaction models, full trace replay and the concealed-variant benchmark remain research goals. [Design proposal (Word)](FoRG%20%E2%80%94%20Causal%20Feedback%20Protocol%20Emulator%20_%20Research%20Proposal%20v0.7.docx)
+The sequencer implements a subset of P1. The SPI peripheral supplies per-address status history and four bits of shared state for loaded P2 models. P3/P4 support one programmable event per sensor with independent service deadlines. P5 can select among four loaded parameter profiles. General transaction models, full trace replay and the concealed-variant benchmark remain research goals. [Design proposal (Word)](FoRG%20%E2%80%94%20Causal%20Feedback%20Protocol%20Emulator%20_%20Research%20Proposal%20v0.7.docx)
 
 ## What the RTL implements
 
