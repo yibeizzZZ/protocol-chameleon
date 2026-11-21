@@ -1,0 +1,40 @@
+# Preregistered internal research evaluation
+
+Design revision `6fd555b`, IHP 8×4, 50 MHz. Use the release ZIP of the same revision for provenance and frozen area/timing. The v0.7 T5 question concerns independent concealed controllers requiring adaptation. This study estimates performance on internally authored functional controller models, including open-loop errors. The three published defective peers and healthy peer in the discovery harness are development data only. [Product requirements](PRODUCT_SPEC.md) · [Development contract](DISCOVERY_EVIDENCE.md) · [Archive](P5_PHYSICAL_ACCEPTANCE.md)
+
+## Population and separation
+
+A separate evaluator authors ten distinct mechanisms and one correct control using only the public wire contract below. It supplies a deterministic peer factory keyed by opaque ID, seed and block index. It checks legal triggering witnesses for each mechanism and the healthy contract independently of the strategy. The strategy author must not inspect model internals or comparative results before the framework freeze. Record the panel hash before the first formal run. All methods retain every ID. There is no external seal or board in this experiment.
+
+## Common experiment
+
+Start each block with a fresh chip reset, identical image, and fresh peer. Each block permits up to two P3/P4 observation windows. A asks at tick zero and B at 0, 16, 64 or 128 system clocks. The controller waits for both, polls A with three bytes (header 1, nonzero controller-selected byte, dummy), samples the reply, then emits zero to two three-byte services. The correct controller services each select once and sends command byte 55 hex to B. Both inclusive deadlines are tick 1000. Every possible A reply byte is legal. Mode 0, 5 MHz, 250 core clocks per service including turnaround. At most three services plus the largest notification gap fit. No contract spans the idle interval between RUNs. DUTs may use the gap observed on the notifications and their own prior transaction and byte history. Peer state persists within a block.
+
+All methods use the same image, binding of A's observed byte, B command, quotas, deadlines, frame generator and wire oracle. Only issue spacing and the reply operand are experimental settings. First reply and both gaps are paired across methods within each seed/block. Gap pairs rotate through all 16 combinations. Initial bytes are drawn uniformly from 0–255 using the assigned seed/block. Seeds 0–29 are paired repeats. Use separate deterministic streams for initial bytes and random second bytes. No post-hoc seed exclusions.
+
+## A. Discovery benefit
+
+* **Feedback:** one RUN of up to two windows. On PASS copy the observed A command to the next reply. On failure the chip finishes the campaign.
+* **Scan:** fixed sequence of second bytes, selected on the four development peers. Compare a sequential byte sweep, an evenly spaced modular sweep and a development-informed sweep prioritizing the three public training bytes before traversing the remaining byte space. Pick the highest sum of confirmed development hits at budgets 2, 4 and 8, averaged over all paired seeds; break ties in the listed order. Publish training scores and the exact byte orders in the frozen harness.
+* **Random:** uniform legal second byte, drawn before seeing any traffic. For scan and random, use a prearranged single-window RUN per byte, keeping chip and peer state between the two. This accommodates arbitrary second bytes beyond the hardware's signed five-bit ADD range. No DUT observation selects their next stimulus. All methods can present any reply byte.
+
+One valid trial means one independently corroborated P4 observation window. A first-window failure terminates that block. End search on first candidate or 128 valid windows. Use the same sequence prefixes for budgets 2, 4, 8, 16, 32, 64, 128. Separate first-RUN results from cumulative cross-RUN results. A candidate requires a wire violation and matching P4 verdict and source. Missing service yields TIMEOUT; duplicate service or wrong B content are scored under the documented precedence. PASS and UNKNOWN never earn discovery. Record invalid/unsupported interactions, disagreements and simulator errors separately; stop that sequence as inconclusive, with zero discovery credit. Retain the workload, seed and first failing condition. Do not replace a peer.
+
+Confirm by repeating the failing block three times from reset with identical seed/block and a fresh peer, then replay the recorded bus frames from reset without the peer. Match wire data and timing, verdict, source, decision tick and actual next stimulus. A missed confirmation or replay receives zero credit and ends that search. Charge completed windows, clocks, frames, setup/readback operations, RUNs and resets through discovery, confirmation and playback separately. A trial budget is a **search** budget: also publish total cost inclusive of three confirmations and playback. For an undiscovered case charge the exhausted search cost. No continuation past a confirmed hit is required for a prefix estimate.
+
+## B. Feedback placement
+
+Run the same PASS/COPY decision through public host pages for the verdict, captured-byte validity and value, followed by ordinary seed/configuration strobes and a new single-window RUN. Retain the peer between windows. Measure waits of 0, 50, 500 and 5000 clocks (0, 1, 10 and 100 microseconds), applied only between trials. Time page presentation at one system clock per read, writes at two per strobe. Charge actual operations from the pin driver, including reset, loading and witness readout; disclose any measurement-only readout. These waits model an idle host, not a measured MCU. Check paired verdicts, first-hit indices and wire behavior against local feedback. Report search throughput and elapsed simulated time, including misses. A and B deadlines are trial-relative and remain active in every window. There is no inter-RUN deadline to violate. Genuine host/interface limitations and late events are reported separately.
+
+## C. Operating boundary
+
+Use direct pin simulation on the same RTL and a separate workload suite.
+
+* Partition three STREAM transactions across CS windows as [3], [2,1], [1,1,1], with 100 and 500 ns between windows where applicable.
+* Cross B issue gaps 0, 1, 160, 322, 331, 332, 333 with B deadlines 481, 482, 483 on a fixed continuous A,A,B schedule. A deadline 322. Report the first ineligible service or expired deadline, source, accepted counts and decision tick.
+* Load conditional images of 2, 4, 6 and 8 rules, exercise short and long branches, and check the 9-rule capacity boundary. Cross encodable images with SPI modes 0–3 and phases 0, 9.9, 10.1 and 19 ns.
+* Measure L1 from launch to changed MISO and setup at sampling, L2 from sufficient pin evidence or expiry to P4 verdict, and L3 from registered verdict to observable update/restart/notification. Label separately the limits of expression, program capacity, scheduling and functionality. Report used entries and state across workloads, preserving the single frozen area. Timing is digital simulation unless explicitly attributed to the extracted archive.
+
+## Estimands and release
+
+Primary discovery fraction at each budget: average over the ten variants of each variant's proportion of its 30 seeds confirmed. Also count distinct variants ever reached and report each variant separately. Compare methods within the same variant and seed. Give variant-level uncertainty (descriptive spread or paired resampling of variants), without treating repeated seeds as independent defects. Report first-hit distribution with misses explicitly censored, healthy false alarms, confirmation successes and replay agreement. Present host throughput as total valid search windows divided by summed simulated search time. Retain raw outcomes and replay data and report counterexamples to any expected advantage. No RTL tuning, new GDS, external security testing or changes to legal expectations in this evaluation.
