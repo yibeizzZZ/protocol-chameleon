@@ -39,6 +39,7 @@ module trial_checker (
   reg [7:0] trigger_tag, trigger_delay, service_window;
   reg qualify_data;
   reg [7:0] trigger_data;
+  reg [7:0] capture_tag, binding_rule;
   reg [3:0] manual_param;
   reg [4:0] selector;
   reg write_pending, running;
@@ -67,6 +68,8 @@ module trial_checker (
       service_window <= 0;
       qualify_data <= 0;
       trigger_data <= 0;
+      capture_tag <= 0;
+      binding_rule <= 0;
       manual_param <= 0;
       for (i=0; i<16; i=i+1) cfg[i] <= 0;
     end else if (!selected) begin
@@ -77,7 +80,7 @@ module trial_checker (
         selected <= host_byte != 8'h31;
         write_pending <= host_byte[7:4] == 4'h4 || host_byte == 8'h50 ||
                          host_byte[7:1] == 7'h29 || host_byte[7:2] == 6'h15 ||
-                         host_byte[7:1] == 7'h2c;
+                         host_byte[7:2] == 6'h16;
         selector <= host_byte[4:0];
       end else if (write_pending) begin
         if (!selector[4]) cfg[selector[3:0]] <= host_byte;
@@ -91,6 +94,8 @@ module trial_checker (
           5'h17: service_window <= host_byte;
           5'h18: manual_param <= host_byte[3:0];
           5'h19: trigger_data <= host_byte;
+          5'h1a: capture_tag <= host_byte;
+          5'h1b: binding_rule <= host_byte;
           default: ;
         endcase
         write_pending <= 0;
@@ -125,6 +130,7 @@ module trial_checker (
   end endgenerate
   wire use_tag = logical_transactions && policy[3];
   wire invalid_plan = enabled == 0 || |invalid_window || policy[1:0] == 3 ||
+                      (binding_rule[7] && !logical_transactions) ||
                       (reactive && (!logical_transactions || !enabled[target_slot])) ||
                       (use_tag && cfg[7] == cfg[15]) ||
                       (policy[1:0] != 0 && enabled != 3);
@@ -150,7 +156,18 @@ module trial_checker (
   wire single_byte = logical_transactions && (src ? policy[7] : policy[6]);
   wire [3:0] expected_length = single_byte ? 4'd1 : {1'b0,flags[7:5]} + 4'd2;
   wire check_data = logical_transactions && (src ? policy[5] : policy[4]);
+  // Compare against the previous accepted producer, even if the current
+  // record is itself a producer. Capture happens on the closing clock.
+  reg [7:0] bound_value;
+  reg bound_valid;
+  wire [31:0] record_values = {tag, cmd_byte, addr_byte, data_byte};
+  wire [1:0] capture_field = binding_rule[3:2];
+  wire [1:0] compare_field = binding_rule[1:0];
+  wire bound_match = bound_valid && present[compare_field] &&
+                     record_values[8*compare_field +: 8] == bound_value;
+  wire check_binding = binding_rule[7] && (src ? binding_rule[5] : binding_rule[4]);
   wire bad_content = length != expected_length ||
+                     (check_binding && !bound_match) ||
                      (flags[3] && (!present[2] || cmd_byte != (src ? cfg[9] : cfg[1]))) ||
                      (flags[4] && (!present[1] || addr_byte != (src ? cfg[10] : cfg[2]))) ||
                      (check_data && (!present[0] || data_byte != expected_data[src]));
@@ -163,9 +180,20 @@ module trial_checker (
   wire match_record = reactive && !trigger_fired && txn_end && frame_open &&
                       cs_active == owner && (owner == 1 || owner == 2) &&
                       present[3] && tag == trigger_tag &&
+                      (!binding_rule[7] || !binding_rule[6] || bound_match) &&
                       (!qualify_data || (present[0] && data_byte == trigger_data)) &&
                       (!accepted_only || decision == 0);
   wire fire_now = match_record && occurrences[1:0] == ordinal_minus_one;
+  always @(posedge clk) begin
+    if (!rst_n || start) begin
+      bound_value <= 0;
+      bound_valid <= 0;
+    end else if (running && binding_rule[7] && txn_end && frame_open &&
+                 decision == 0 && present[3] && tag == capture_tag) begin
+      bound_valid <= present[capture_field];
+      bound_value <= record_values[8*capture_field +: 8];
+    end
+  end
   wire [7:0] delay_ticks = campaign_busy ? (target_slot ? issue_b : issue_a) : trigger_delay;
   assign reactive_due = !trigger_issued && decision == 0 &&
                         ((fire_now && delay_ticks == 0) || (trigger_fired && remaining == 0));
@@ -285,6 +313,9 @@ module trial_checker (
   wire feedback_read = host_byte[7:6] == 2'b10 || host_byte == 8'hc0 || host_byte[7:2] == 6'h31;
   wire [3:0] readback = feedback_read ? campaign_page :
                         host_byte == 8'hd0 ? {2'b0,trigger_issued,trigger_fired} :
+                        host_byte == 8'hd2 ? bound_value[3:0] :
+                        host_byte == 8'hd3 ? bound_value[7:4] :
+                        host_byte == 8'hd4 ? {3'b0,bound_valid} :
                         host_byte == 8'hd1 ? {1'b0,occurrences} : page;
   assign outputs = {readback, !campaign_busy && outcome != 0,
                     campaign_busy || running, issued & ~satisfied & {2{running}}};

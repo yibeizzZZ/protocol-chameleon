@@ -258,3 +258,80 @@ async def marked_stream_timing_all_modes(dut):
                       max(delays)/1000, 100-max(delays)/1000, min(enables)/1000, max(enables)/1000)
         await p.write(0x31)
         await exit_peripheral(p)
+
+
+async def correlation_trial(p, quota=1):
+    # Three bytes per logical record: identity, command, payload.
+    trial = await setup(p, bytes.fromhex("71 00 72 00 70 00"), [TAG, CMD, END | DATA])
+    await trial.plan(descriptor(0, 1000, checks=0, quota=quota),
+                     descriptor(0, 1000, checks=0), policy=8)
+    for selector, value in ((0x47, 1), (0x4f, 2), (0x5a, 1)):
+        await field(p, selector, value)
+    return trial
+
+
+@cocotb.test()
+async def check_previous_wire_field(dut):
+    p = Pins(dut)
+    await p.reset()
+    trial = await correlation_trial(p)
+    for token in (0x2d, 0xe1, 0):
+        for capture_cmd, expected in ((True, WRONG), (False, PASS)):
+            # Only the chosen producer field changes between these replays.
+            await field(p, 0x5b, 0xa2 | (8 if capture_cmd else 0))
+            await trial.start()
+            await trial.until(5)
+            await trial.frame(0, [1, token ^ 0xff, token, 2, token, 0])
+            await trial.until(1001)
+            result = await trial.result()
+            assert (result[0], result[5:]) == (expected, (1, int(expected == PASS)))
+    # The preceding trial left zero in the binding. A new trial must see it as absent.
+    await trial.start()
+    await trial.until(5)
+    await trial.frame(0, [2, 0, 0])
+    assert (await trial.result())[:2] == (WRONG, 2)
+
+
+@cocotb.test()
+async def previous_payload_schedules_notification(dut):
+    p = Pins(dut)
+    await p.reset()
+    trial = await correlation_trial(p, quota=2)
+    for selector, value in ((0x54, 0xe0), (0x55, 1), (0x56, 0), (0x5b, 0xc2)):
+        await field(p, selector, value)
+    for second_cmd, expected in ((0x31, PASS), (0x7c, TIMEOUT)):
+        await trial.start()
+        await trial.until(5)
+        # The first A record stores 31. The second carries 7C and must
+        # compare its command with the *previous* payload before updating.
+        await trial.frame(0, [1, 0, 0x31, 1, second_cmd, 0x7c])
+        expected_issues = [483] if expected == PASS else []
+        assert [t for t, bits in trial.notifications if bits & 2] == expected_issues
+        if expected == PASS:
+            await trial.frame(0, [2, 0, 0])
+        await trial.until(1001)
+        assert (await trial.result())[0] == expected
+
+
+@cocotb.test()
+async def feedback_trial_starts_with_no_bound_operand(dut):
+    p = Pins(dut)
+    await p.reset()
+    trial = await correlation_trial(p)
+    await field(p, 0x5b, 0xa2)
+    await field(p, 0x51, 3)  # allow up to four trials
+    await profile(p, 1, 1, 2, 0)
+    await rule(p, 0, PASS, 1)
+    await rule(p, 1, WRONG, 1, source=2, prev=PASS, stop=True)
+    await launch(trial)
+    await trial.until(5)
+    await trial.frame(0, [1, 0, 0x6d, 2, 0x6d, 0])
+    assert await page(p, 0xd4) == 1
+    assert await page(p, 0xd2) + 16 * await page(p, 0xd3) == 0x6d
+    await trial.until(1010)
+    await trial.frame(0, [2, 0x6d, 0])
+    assert await page(p, 0xd4) == 0
+    assert await page(p, 0xc0) == 2
+    first, second = await record(p, 0), await record(p, 1)
+    assert (first['verdict'], first['target']) == (PASS, 1)
+    assert (second['verdict'], second['source'], second['stop']) == (WRONG, 2, True)

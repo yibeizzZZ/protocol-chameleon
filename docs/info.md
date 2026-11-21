@@ -523,6 +523,46 @@ the same final reply fail as WRONG_CONTENT for B. This interface checks
 whole-byte fields on the SPI datapath, with two service slots and their
 existing quotas and ordering rules.
 
+### Capture a wire field for use in a later transaction
+
+A trial can remember one byte from an accepted, tagged logical record. A later
+record can compare any of its annotated fields with that byte. The host can
+load both field selectors before the trial and leave the actual byte value to
+the DUT. P3 and P4 can apply this equality condition separately or together.
+
+| Selector | Value |
+| --- | --- |
+| `5A` | Producer tag. An accepted logical record with this tag replaces the stored operand at its END. |
+| `5B` | Bit 7 enables capture and use. Bit 6 adds equality to the existing P3 trigger. Bits 5 and 4 add equality to the P4 checks for slots B and A respectively. Bits 3:2 select the producer field and bits 1:0 select the consumer field. |
+| Field selectors | 0 = data, 1 = address, 2 = command, 3 = tag. The byte-program annotation selects MOSI or MISO for data. |
+| Read pages `D2`, `D3`, `D4` | Low nibble, high nibble and valid bit of the captured operand. Read the nibbles when valid. |
+
+Set selectors through the ordinary stopped-trial control/data strobe pair.
+Reset disables the feature. Enabling it on a physical-frame-only image makes
+the plan invalid (UNKNOWN). Each manual or automatic trial starts with an
+empty operand. A missing producer field invalidates the operand when that
+producer is accepted. Until a field is captured, or if the consumer field is
+missing, equality is false even for a zero byte. A record that both consumes
+and produces compares against the previous value before replacing it. A
+rejected record leaves the operand intact. An unsatisfied P3 equality
+suppresses that match. An unsatisfied P4 equality follows the existing
+WRONG_CONTENT and verdict-priority rules.
+
+**Example.** Load a repeating three-byte SPI program (`71 00 72 00 70 00`)
+with annotations `10 08 22` (tag, command, then MOSI data plus END). Configure
+both slots for one three-byte service from tick 0 with deadline 1000, disable
+literal command/address checks, set policy `50=08`, and set slot tags
+`47=01`, `4F=02`. Load `5A=01`, `5B=A2`. Within one CS window send
+`01 00 6D 02 6D 00`. The first record supplies the value 6D and the second
+echoes it in its command field. Changing only `5B` to `AA` captures the
+first command (00) and the same trace produces WRONG_CONTENT for slot B.
+
+For reactive scheduling, load `5B=C2`, set A's quota to two, and set
+`54=E0`, `55=01`, `56=00`. The first A record captures its payload.
+A second A record whose command equals that payload issues B's notification
+on its closing tick. The resulting verdict is available to the usual feedback
+rules.
+
 ### Transaction-triggered P3 notifications
 
 With an annotated byte program loaded, either notification slot can wait

@@ -2,6 +2,10 @@
 
 For the integrated logic at `86d9f79` and its project-named release at `59f32fd`, all **58 pin-level tests and nine assembler tests passed**. Five peripheral-model cases extend the 53-case P1 baseline. The shared-wire peer establishes the idle clock before RUN in test revision `4f1325e`. Run `make -C test p1` for the assembler and five compiled P1 pin tests. [Physical and gate-level evidence](../docs/PHYSICAL_ACCEPTANCE.md)
 
+The subsequent wire-field capture extension passes **61/61 RTL tests** and **9/9 assembler tests**. Three new pin tests check a DUT-chosen token under continuous CS, schedule an event using the previous payload, and exercise trial-local capture across autonomous feedback. On the previous RTL, replaying a changed contract wrongly passed and the notification fired on the first record. With capture enabled in the reactive example, the second record schedules the notification at tick 483. Run `make -C test COCOTB_TEST_MODULES=test_transactions` for the focused suite. [Programming contract](../docs/info.md#capture-a-wire-field-for-use-in-a-later-transaction)
+
+The comparable typical-library estimate increased from 112,217.351 to 115,381.249 µm² (+2.82%) and from 1,263 to 1,288 flip-flops. Ideal 20 ns register-to-register setup slack was +13.147 ns. The SPI model RTL sweep still observed 40.1–60.0 ns to MISO in all four modes. The archived routed results apply to `59f32fd`; this extension has only RTL simulation and pre-layout mapping/STA.
+
 ## Reproduce the functional tests
 
 The M10 run used Ubuntu 26.04 under WSL, Python 3.11, Icarus Verilog 12.0, GNU Make 4.4.1 and Cocotb 2.0.1. From the repository root on Linux with Python 3.11 and its venv support installed, use the same Makefile, simulator and result check as the [repository's Tiny Tapeout workflow](../.github/workflows/test.yaml).
@@ -25,7 +29,7 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [SPI byte programs](test_byte_program.py) | 3 | Runtime transaction-format replacement, timing across all modes, incomplete images and stale targets. |
 | [Trial planning and checking](test_trials.py) | 5 | Dual-source notification and deadlines, 112 deterministic traces, rule changes on the same traffic, invalid frames and active-checker SPI timing. |
 | [Feedback campaigns](test_feedback.py) | 6 | Four-trial autonomous execution, two-verdict history, policy-only replay, stopping and retention, deadlines inside a selected frame, and SPI timing with a feedback-selected status mode. |
-| [Logical transactions](test_transactions.py) | 9 | STREAM mismatch and compatibility, contract-only replay, boundary-only replay, input-dependent lengths and truncated tails, exact deadlines and start eligibility, read-history scope, missing fields, autonomous feedback and SPI timing. |
+| [Logical transactions](test_transactions.py) | 12 | STREAM mismatch and compatibility, contract-only replay, boundary-only replay, input-dependent lengths and truncated tails, exact deadlines and start eligibility, read-history scope, missing fields, autonomous feedback and SPI timing. |
 | [Transaction-triggered P3](test_reactive.py) | 6 | Rule-only and input-time replays, reverse target, omission, rejection and cancellation, hard and relative deadlines, four matches, partial records, feedback and SPI timing. |
 | [Shared-wire GPIO register](test_shared_wire_register.py) | 1 | Two- and three-clock frames, read-after-write history, pin ownership and turnaround at 1 MHz across 22 phases. |
 | [I²C write and timed GPIO](test_i2c_write.py) | 2 | Standard/Fast-mode writes and target NACKs, timed-mode loader settings, slot order, STOP, replay, sample readback and jumps beyond the loaded image. |
