@@ -1,0 +1,958 @@
+{
+  "suite": "public-calibration",
+  "cases": {
+    "healthy": {
+      "control": {
+        "records": [
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 0,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": true,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          },
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 1,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": false,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          }
+        ],
+        "frames": [
+          [
+            {
+              "start": 1,
+              "end": 251,
+              "slot": 0,
+              "mosi": [
+                1,
+                55,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 251,
+              "end": 501,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          [
+            {
+              "start": 805,
+              "end": 1055,
+              "slot": 0,
+              "mosi": [
+                1,
+                55,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 1055,
+              "end": 1305,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        ],
+        "duration_clocks": 1607,
+        "pin_sha256": "32127127902809687974acb62090efe59a66ec30c801643c10a1c4767477f1a9"
+      },
+      "discovery": {
+        "records": [
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 0,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": true,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          },
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 1,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": false,
+            "stop": false,
+            "operands": [
+              1,
+              55
+            ]
+          }
+        ],
+        "frames": [
+          [
+            {
+              "start": 1,
+              "end": 251,
+              "slot": 0,
+              "mosi": [
+                1,
+                55,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 251,
+              "end": 501,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          [
+            {
+              "start": 805,
+              "end": 1055,
+              "slot": 0,
+              "mosi": [
+                1,
+                55,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                55
+              ]
+            },
+            {
+              "start": 1055,
+              "end": 1305,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        ],
+        "duration_clocks": 1607,
+        "pin_sha256": "03e857d1dd10f0502ff601c3cc92087e38d435bffbd6df6dc22a73c43a15123b"
+      },
+      "confirmations": [
+        "03e857d1dd10f0502ff601c3cc92087e38d435bffbd6df6dc22a73c43a15123b",
+        "03e857d1dd10f0502ff601c3cc92087e38d435bffbd6df6dc22a73c43a15123b",
+        "03e857d1dd10f0502ff601c3cc92087e38d435bffbd6df6dc22a73c43a15123b"
+      ],
+      "playback_sha256": "03e857d1dd10f0502ff601c3cc92087e38d435bffbd6df6dc22a73c43a15123b",
+      "differences": {},
+      "confirmed_discovery": false
+    },
+    "omit": {
+      "control": {
+        "records": [
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 0,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": true,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          },
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 1,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": false,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          }
+        ],
+        "frames": [
+          [
+            {
+              "start": 1,
+              "end": 251,
+              "slot": 0,
+              "mosi": [
+                1,
+                163,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 251,
+              "end": 501,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          [
+            {
+              "start": 805,
+              "end": 1055,
+              "slot": 0,
+              "mosi": [
+                1,
+                163,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 1055,
+              "end": 1305,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        ],
+        "duration_clocks": 1607,
+        "pin_sha256": "fa11ca585dbcd0844b30b22639b00e7fe8bce3553487da6b4cf5d22c1d7f82bc"
+      },
+      "discovery": {
+        "records": [
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 0,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": true,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          },
+          {
+            "verdict": 2,
+            "source": 2,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 1,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": false,
+            "rule": 3,
+            "continued": false,
+            "stop": false,
+            "operands": [
+              1,
+              163
+            ]
+          }
+        ],
+        "frames": [
+          [
+            {
+              "start": 1,
+              "end": 251,
+              "slot": 0,
+              "mosi": [
+                1,
+                163,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 251,
+              "end": 501,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          [
+            {
+              "start": 805,
+              "end": 1055,
+              "slot": 0,
+              "mosi": [
+                1,
+                163,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                163
+              ]
+            }
+          ]
+        ],
+        "duration_clocks": 1607,
+        "pin_sha256": "7b7c723a35aa187798a917377732ff8f3a17c9b17e663ae961003d16032f129c"
+      },
+      "confirmations": [
+        "7b7c723a35aa187798a917377732ff8f3a17c9b17e663ae961003d16032f129c",
+        "7b7c723a35aa187798a917377732ff8f3a17c9b17e663ae961003d16032f129c",
+        "7b7c723a35aa187798a917377732ff8f3a17c9b17e663ae961003d16032f129c"
+      ],
+      "playback_sha256": "7b7c723a35aa187798a917377732ff8f3a17c9b17e663ae961003d16032f129c",
+      "differences": {},
+      "confirmed_discovery": true
+    },
+    "repeat": {
+      "control": {
+        "records": [
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 0,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": true,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          },
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 1,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": false,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          }
+        ],
+        "frames": [
+          [
+            {
+              "start": 1,
+              "end": 251,
+              "slot": 0,
+              "mosi": [
+                1,
+                89,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 251,
+              "end": 501,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          [
+            {
+              "start": 805,
+              "end": 1055,
+              "slot": 0,
+              "mosi": [
+                1,
+                89,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 1055,
+              "end": 1305,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        ],
+        "duration_clocks": 1607,
+        "pin_sha256": "7eb5195c0aa9b6ff501f745dc6be28fefb603d81f323892b867a14e71523ac2f"
+      },
+      "discovery": {
+        "records": [
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 0,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": true,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          },
+          {
+            "verdict": 3,
+            "source": 1,
+            "tick": 488,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 1,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": false,
+            "rule": 3,
+            "continued": false,
+            "stop": false,
+            "operands": [
+              1,
+              89
+            ]
+          }
+        ],
+        "frames": [
+          [
+            {
+              "start": 1,
+              "end": 251,
+              "slot": 0,
+              "mosi": [
+                1,
+                89,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 251,
+              "end": 501,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          [
+            {
+              "start": 805,
+              "end": 1055,
+              "slot": 0,
+              "mosi": [
+                1,
+                89,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                89
+              ]
+            },
+            {
+              "start": 1055,
+              "end": 1305,
+              "slot": 0,
+              "mosi": [
+                1,
+                89,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                89
+              ]
+            }
+          ]
+        ],
+        "duration_clocks": 1305,
+        "pin_sha256": "1c88b0199b34cccdc56b99c623372ce2df369b9e5387c74bc35a667c763e0955"
+      },
+      "confirmations": [
+        "1c88b0199b34cccdc56b99c623372ce2df369b9e5387c74bc35a667c763e0955",
+        "1c88b0199b34cccdc56b99c623372ce2df369b9e5387c74bc35a667c763e0955",
+        "1c88b0199b34cccdc56b99c623372ce2df369b9e5387c74bc35a667c763e0955"
+      ],
+      "playback_sha256": "1c88b0199b34cccdc56b99c623372ce2df369b9e5387c74bc35a667c763e0955",
+      "differences": {},
+      "confirmed_discovery": true
+    },
+    "corrupt": {
+      "control": {
+        "records": [
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 0,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": true,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          },
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 1,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": false,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          }
+        ],
+        "frames": [
+          [
+            {
+              "start": 1,
+              "end": 251,
+              "slot": 0,
+              "mosi": [
+                1,
+                206,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 251,
+              "end": 501,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          [
+            {
+              "start": 805,
+              "end": 1055,
+              "slot": 0,
+              "mosi": [
+                1,
+                206,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 1055,
+              "end": 1305,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        ],
+        "duration_clocks": 1607,
+        "pin_sha256": "1a00c573c89c3f8a5de4c650aa0ba70db4f39412b725948c2436a48d8487e5c1"
+      },
+      "discovery": {
+        "records": [
+          {
+            "verdict": 1,
+            "source": 0,
+            "tick": 801,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 0,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": true,
+            "rule": 0,
+            "continued": true,
+            "stop": false,
+            "operands": [
+              1,
+              0
+            ]
+          },
+          {
+            "verdict": 4,
+            "source": 2,
+            "tick": 488,
+            "settings": [
+              0,
+              0,
+              0
+            ],
+            "prev": 1,
+            "older": 0,
+            "applied": 0,
+            "target": 0,
+            "matched": false,
+            "rule": 3,
+            "continued": false,
+            "stop": false,
+            "operands": [
+              1,
+              206
+            ]
+          }
+        ],
+        "frames": [
+          [
+            {
+              "start": 1,
+              "end": 251,
+              "slot": 0,
+              "mosi": [
+                1,
+                206,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "start": 251,
+              "end": 501,
+              "slot": 1,
+              "mosi": [
+                2,
+                85,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          [
+            {
+              "start": 805,
+              "end": 1055,
+              "slot": 0,
+              "mosi": [
+                1,
+                206,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                206
+              ]
+            },
+            {
+              "start": 1055,
+              "end": 1305,
+              "slot": 1,
+              "mosi": [
+                2,
+                84,
+                0
+              ],
+              "miso": [
+                0,
+                0,
+                0
+              ]
+            }
+          ]
+        ],
+        "duration_clocks": 1305,
+        "pin_sha256": "fc4c16ca01d43b1d802ac58068aa09c46150ea74869056278ff7b33a5e9110a4"
+      },
+      "confirmations": [
+        "fc4c16ca01d43b1d802ac58068aa09c46150ea74869056278ff7b33a5e9110a4",
+        "fc4c16ca01d43b1d802ac58068aa09c46150ea74869056278ff7b33a5e9110a4",
+        "fc4c16ca01d43b1d802ac58068aa09c46150ea74869056278ff7b33a5e9110a4"
+      ],
+      "playback_sha256": "fc4c16ca01d43b1d802ac58068aa09c46150ea74869056278ff7b33a5e9110a4",
+      "differences": {},
+      "confirmed_discovery": true
+    }
+  }
+}

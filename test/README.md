@@ -1,5 +1,7 @@
 # RTL verification
 
+The autonomous-discovery suite brings the current regression to 67 pin-level tests. It exercises response-dependent controller faults, three reset confirmations, edit-disabled and healthy controls, and playback from saved wire traffic. [Discovery evidence and replay commands](../docs/DISCOVERY_EVIDENCE.md)
+
 The feedback operand release freezes the 66-case regression at `6fd555b`. The latency case records the time from a P4 verdict to an operand update, the next trial and the first changed reply bit. [Physical results, latency and reproduction commands](../docs/P5_PHYSICAL_ACCEPTANCE.md)
 
 For the integrated logic at `86d9f79` and its project-named release at `59f32fd`, all **58 pin-level tests and nine assembler tests passed**. Five peripheral-model cases extend the 53-case P1 baseline. The shared-wire peer establishes the idle clock before RUN in test revision `4f1325e`. Run `make -C test p1` for the assembler and five compiled P1 pin tests. [Physical and gate-level evidence](../docs/PHYSICAL_ACCEPTANCE.md)
@@ -54,6 +56,7 @@ make clean && make && python -m cocotb_tools.check_results results.xml
 | [Compiled P1 examples](test_p1_sources.py) | 4 | Load editable GPIO, I²C, timed-pulse and annotated SPI sources. Check changed payloads and transaction boundaries on the pins. |
 | [Held-out two-vote interlock](test_p1_heldout.py) | 1 | Check pin ownership, response deadline and vote history across 114 frames. [Protocol and seal](../docs/P1_HELDOUT.md) |
 | [Runtime peripheral models](test_models.py) | 10 | Swap one- and two-vote models on the same wires, handle truncated writes and reads, gate notification on captured MISO, change the next trial's state predicate, freeze that parameter during CS, and measure feedback operand latency and 5 MHz replies in four modes across 22 phases. |
+| [Autonomous discovery](test_discovery.py) | 1 | Discover three public faults through a feedback-selected reply and reproduce their wire traces from reset. |
 
 ## I2C controller write
 
